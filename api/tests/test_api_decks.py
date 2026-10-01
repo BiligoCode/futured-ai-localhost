@@ -150,3 +150,25 @@ async def test_export_route_and_download(tmp_path):
         assert (await c.get(f"/decks/{d['id']}/export/nope.pdf")).status_code == 404
         r = await c.post(f"/decks/{d['id']}/export", json={"format": "pdf"})
         assert r.json()["filename"] == "Δέντρα.pdf" and (await c.get(r.json()["url"])).content[:5] == b"%PDF-"
+
+
+async def test_put_duplicate_and_sloppy_ids_get_fresh_ids(tmp_path):
+    app = make_app(tmp_path)
+    async with api_client(app) as c:
+        d = await create_deck(c)
+        first = d["slides"][0]["id"]
+        body = {"title": "t", "version": 1, "slides": [
+            {"id": first, "html": "<p>a</p>", "video": None}, {"id": first, "html": "<p>b</p>", "video": None},
+            {"id": "abcdef12\n", "html": "<p>c</p>", "video": None}]}
+        ids = [s["id"] for s in (await c.put(f"/decks/{d['id']}", json=body)).json()["slides"]]
+        assert ids[0] == first and len(set(ids)) == 3 and all(re.fullmatch(r"[0-9a-f]{8}", i) for i in ids)
+
+
+async def test_blank_title_422(tmp_path):
+    app = make_app(tmp_path)
+    async with api_client(app) as c:
+        r = await c.post("/decks", data={"title": "   ", "language": "el"})
+        assert r.status_code == 422 and r.json()["detail"] == "Please give the slides a title"
+        d = await create_deck(c)
+        r = await c.put(f"/decks/{d['id']}", json={"title": " ", "version": 1, "slides": [{"id": None, "html": "<p>x</p>", "video": None}]})
+        assert r.status_code == 422

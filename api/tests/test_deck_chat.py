@@ -78,8 +78,8 @@ def test_apply_edits_errors():
 def test_run_chat_question_only():
     deck = deck_with("<p>1</p>")
     llm = ScriptedLLM([reply([], "Ναι, μπορείτε.")])
-    text, slides, log = run_chat(llm, deck, "", "τι λες;", slide_id=None, selection=None)
-    assert text == "Ναι, μπορείτε." and log == [] and slides == deck.slides
+    text, slides, log, edits = run_chat(llm, deck, "", "τι λες;", slide_id=None, selection=None)
+    assert text == "Ναι, μπορείτε." and log == [] and slides == deck.slides and edits == []
     system = llm.calls[0][0]
     assert "Greek" in system and '"edits"' in system and "1280" in system
 
@@ -89,7 +89,7 @@ def test_run_chat_language_retry():
     a = deck.slides[0].id
     llm = ScriptedLLM([reply([{"op": "replace", "slide": a, "html": "<p>This is English text that is long enough to count</p>"}]),
                        reply([{"op": "replace", "slide": a, "html": "<p>Αυτό είναι ελληνικό κείμενο αρκετά μεγάλο για έλεγχο</p>"}])])
-    _, slides, log = run_chat(llm, deck, "", "γράψε", slide_id=None, selection=None)
+    _, slides, log, _ = run_chat(llm, deck, "", "γράψε", slide_id=None, selection=None)
     assert len(llm.calls) == 2
     retry = llm.calls[1][1]
     assert retry[-2]["role"] == "assistant" and "not valid" in retry[-1]["content"]
@@ -99,7 +99,7 @@ def test_run_chat_language_retry():
 def test_run_chat_short_text_skips_language_check():
     deck = deck_with("<p>1</p>")
     llm = ScriptedLLM([reply([{"op": "replace", "slide": deck.slides[0].id, "html": "<h1>O(n log n)</h1>"}])])
-    _, slides, _ = run_chat(llm, deck, "", "τίτλος", slide_id=None, selection=None)
+    _, slides, _, _ = run_chat(llm, deck, "", "τίτλος", slide_id=None, selection=None)
     assert slides[0].html == "<h1>O(n log n)</h1>" and len(llm.calls) == 1
 
 
@@ -160,3 +160,59 @@ async def test_chat_history_trimmed_to_50(tmp_path):
         for _ in range(30):
             assert (await c.post(f"/decks/{deck.id}/chat", json={"message": "x"})).status_code == 200
         assert len((await c.get(f"/decks/{deck.id}")).json()["chat"]) == 50
+
+
+async def test_chat_keeps_a_slide_added_while_the_model_was_thinking(tmp_path):
+    """Review finding: the chat reply must apply to the deck as it is when the model answers, not as it was."""
+    import asyncio
+    import threading
+
+    app = make_app(tmp_path, [])
+    deck = app.state.decks.create(title="t", language="el", material_text="")
+    a = deck.slides[0].id
+    gate = threading.Event()
+
+    class GatedLLM:
+        def __call__(self, system, messages):
+            gate.wait(timeout=5)
+            return reply([{"op": "replace", "slide": a, "html": "<h1>Από το μοντέλο</h1>"}])
+
+    app.state.llm = GatedLLM()
+    async with api_client(app) as c:
+        chat = asyncio.create_task(c.post(f"/decks/{deck.id}/chat", json={"message": "x"}))
+        await asyncio.sleep(0.2)  # the model is "thinking"
+        r = await c.put(f"/decks/{deck.id}", json={"title": "t", "version": 1, "slides": [
+            {"id": a, "html": "<h1>t</h1>", "video": None}, {"id": None, "html": "<p>typed meanwhile</p>", "video": None}]})
+        assert r.status_code == 200 and r.json()["version"] == 2
+        gate.set()
+        result = await chat
+        assert result.status_code == 200, result.text
+        slides = result.json()["deck"]["slides"]
+        assert [s["html"] for s in slides] == ["<h1>Από το μοντέλο</h1>", "<p>typed meanwhile</p>"]
+        assert result.json()["deck"]["version"] == 3
+
+
+async def test_chat_409_when_the_edited_slide_vanished_meanwhile(tmp_path):
+    import asyncio
+    import threading
+
+    app = make_app(tmp_path, [])
+    deck = app.state.decks.create(title="t", language="el", material_text="")
+    a = deck.slides[0].id
+    gate = threading.Event()
+
+    class GatedLLM:
+        def __call__(self, system, messages):
+            gate.wait(timeout=5)
+            return reply([{"op": "replace", "slide": a, "html": "<h1>Από το μοντέλο</h1>"}])
+
+    app.state.llm = GatedLLM()
+    async with api_client(app) as c:
+        chat = asyncio.create_task(c.post(f"/decks/{deck.id}/chat", json={"message": "x"}))
+        await asyncio.sleep(0.2)
+        await c.put(f"/decks/{deck.id}", json={"title": "t", "version": 1,
+                                               "slides": [{"id": None, "html": "<p>replaced the only slide</p>", "video": None}]})
+        gate.set()
+        result = await chat
+        assert result.status_code == 409 and result.json()["detail"] == "The slides were changed elsewhere"
+        assert len((await c.get(f"/decks/{deck.id}")).json()["chat"]) == 0

@@ -26,11 +26,11 @@ def _font_css() -> str:
 
 def video_figure(ref: AnimationRef | None, poster: Path | None, file: str | None) -> str:
     """The exported stand-in for an embedded animation: its poster frame, linked to the video file in the zip."""
-    if ref is None or ref.status != "ready" or poster is None or not poster.is_file():
+    if ref is None or ref.status != "ready":
         return ""
     caption = f"▶ Animation: {html.escape(ref.title, quote=False)}" + (f" — {html.escape(file, quote=False)}" if file else "")
-    img = f'<img src="{poster.resolve().as_uri()}" alt="">'
-    if file:
+    img = f'<img src="{poster.resolve().as_uri()}" alt="">' if poster is not None and poster.is_file() else ""
+    if file and img:
         img = f'<a href="{html.escape(file)}">{img}</a>'
     return f'<figure class="slide-video">{img}<figcaption>{caption}</figcaption></figure>'
 
@@ -44,15 +44,21 @@ def render_html(deck: Deck, animations: list[AnimationRef], posters: dict[str, P
         figure = video_figure(refs.get(slide.video), posters.get(slide.video), video_files.get(slide.video)) \
             if slide.video else ""
         sections.append(
-            f'<section class="slide"><div class="slide-text">{slide.html}</div>{figure}'
+            f'<section class="slide{" has-video" if figure else ""}"><div class="slide-text">{slide.html}</div>{figure}'
             f'<footer class="slide-footer"><span>{html.escape(deck.title, quote=False)}</span>'
             f"<span>{n} / {total}</span></footer></section>")
     return (
         '<!doctype html><html><head><meta charset="utf-8"><style>'
         "@page { size: 1280px 720px; margin: 0 }\n"
         "body { margin: 0 }\n"
-        ".slide { page-break-after: always }\n"
-        f"{_font_css()}\n{(ASSETS / 'slide.css').read_text(encoding='utf-8')}"
+        f"{_font_css()}\n{(ASSETS / 'slide.css').read_text(encoding='utf-8')}\n"
+        # Print-only, after the shared stylesheet so it wins. WeasyPrint fragments in-flow boxes across pages even
+        # with overflow: hidden, but never absolutely positioned ones: the text box (600px of content height, 204px
+        # above a poster figure) and the figure are positioned inside the slide, so a slide is always one page.
+        ".slide { display: block; position: relative; page-break-after: always }\n"
+        ".slide-text { position: absolute; top: 64px; left: 72px; right: 72px; height: 600px; overflow: hidden }\n"
+        ".slide.has-video .slide-text { height: 204px }\n"
+        ".slide.has-video .slide-video { position: absolute; top: 276px; left: 72px; right: 72px; margin: 0 }\n"
         f"</style></head><body>{''.join(sections)}</body></html>")
 
 

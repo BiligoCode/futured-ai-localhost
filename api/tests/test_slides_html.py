@@ -53,3 +53,10 @@ def test_slide_title_prefers_first_heading_and_decodes_entities():
 def test_deck_material_text():
     out = deck_material_text("Αλγόριθμοι", ["<h1>Α</h1><p>κείμενο</p>", "<p>μόνο σώμα</p>"])
     assert out == "Lecture slides: Αλγόριθμοι\n\nSlide 1: Α\nκείμενο\n\nSlide 2: μόνο σώμα\nμόνο σώμα"
+
+
+def test_sanitize_strips_control_characters():
+    from app.slides_html import clean_text
+
+    assert sanitize_slide_html("<p>a\x0cb\x00c\x1bd\ttab</p>") == "<p>abcd\ttab</p>"
+    assert clean_text("Τ\x0cίτλος\x7f") == "Τίτλος"

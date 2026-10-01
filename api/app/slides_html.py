@@ -22,6 +22,12 @@ TITLE_CHARS = 60
 
 _HEX = re.compile(r"^#([0-9a-fA-F]{6})$")
 _PX = re.compile(r"^(\d{1,3})px$")
+# Control characters (form feeds from PDF text, NULs, escapes) are invisible to the professor and invalid in XML.
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def clean_text(text: str) -> str:
+    return _CONTROL.sub("", text)
 
 
 class SlideTooLong(ValueError):
@@ -95,7 +101,7 @@ class _Sanitizer(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if not self.dropping:
-            self.out.append(htmllib.escape(data, quote=False))
+            self.out.append(htmllib.escape(clean_text(data), quote=False))
 
     def result(self) -> str:
         self.close()

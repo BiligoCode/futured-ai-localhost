@@ -44,7 +44,7 @@ def main() -> int:
         print(f"\n=== {message}  (slide {slide_id})")
         started = time.monotonic()
         try:
-            reply, slides, log = run_chat(llm, deck, "", message, slide_id=slide_id, selection=None)
+            reply, slides, log, _ = run_chat(llm, deck, "", message, slide_id=slide_id, selection=None)
         except DeckChatError as exc:
             failures += 1
             print(f"FAILED after {time.monotonic() - started:.1f}s: {exc}")

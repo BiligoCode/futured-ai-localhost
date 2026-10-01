@@ -90,3 +90,20 @@ async def test_poster_served(setup):
         await c.post(f"/decks/{deck.id}/embed", json={"project_id": ready.id, "mode": "new_end"})
         r = await c.get(f"/decks/{deck.id}/posters/{ready.id}.jpg")
         assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and r.content == b"jpg"
+
+
+async def test_embed_poster_failure_is_a_readable_502(setup, monkeypatch):
+    from app.media import MediaError
+
+    app, poster, deck, ready = setup
+
+    def broken(video, out, at):
+        raise MediaError("ffmpeg exploded")
+
+    monkeypatch.setattr("app.routes.decks.make_poster", broken)
+    async with api_client(app) as c:
+        r = await c.post(f"/decks/{deck.id}/embed", json={"project_id": ready.id, "mode": "new_end"})
+        assert r.status_code == 502 and r.json()["detail"] == "Could not take a still from the animation: ffmpeg exploded"
+        r = await c.post(f"/decks/{deck.id}/embed", json={"project_id": ready.id, "mode": "new_end"},
+                         headers={"X-Lara-Lang": "el"})
+        assert r.json()["detail"].startswith("Δεν ήταν δυνατή η λήψη καρέ από την κινούμενη εικόνα: ")

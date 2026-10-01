@@ -1,5 +1,6 @@
 """Export a deck: the document alone, or a zip with the document and the embedded animations' video files."""
 import re
+import unicodedata
 import zipfile
 from pathlib import Path
 from typing import Literal
@@ -19,7 +20,7 @@ _UNSAFE = re.compile(r"[^\w \-]+", re.UNICODE)
 
 def safe_filename(title: str) -> str:
     """A download name that keeps Greek letters but nothing a file system or a zip could choke on."""
-    name = re.sub(r"-{2,}", "-", _UNSAFE.sub("-", title)).strip(" -")[:MAX_FILENAME].strip(" -")
+    name = re.sub(r"-{2,}", "-", _UNSAFE.sub("-", unicodedata.normalize("NFC", title))).strip(" -")[:MAX_FILENAME].strip(" -")
     return name or "slides"
 
 

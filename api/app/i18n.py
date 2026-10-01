@@ -46,6 +46,7 @@ EXACT = {
     "This slide does not exist": "Αυτή η διαφάνεια δεν υπάρχει",
     "Poster not found": "Η εικόνα δεν βρέθηκε",
     "Export not found": "Το αρχείο εξαγωγής δεν βρέθηκε",
+    "Please give the slides a title": "Δώστε έναν τίτλο στις διαφάνειες",
 }
 
 PREFIXES = {
@@ -56,6 +57,7 @@ PREFIXES = {
     "ElevenLabs request failed": "Το αίτημα προς το ElevenLabs απέτυχε",
     "ElevenLabs returned an unexpected response: ": "Το ElevenLabs επέστρεψε απρόσμενη απάντηση: ",
     "Export failed: ": "Η εξαγωγή απέτυχε: ",
+    "Could not take a still from the animation: ": "Δεν ήταν δυνατή η λήψη καρέ από την κινούμενη εικόνα: ",
 }
 
 

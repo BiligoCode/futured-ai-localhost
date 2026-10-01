@@ -141,3 +141,33 @@ def test_export_skips_missing_animation(tmp_path):
     assert path == deck_dir / "export" / "deck.docx" and filename == "Δέντρα.docx"
     assert media_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     assert Document(str(path)).paragraphs
+
+
+def test_render_pdf_clips_overflowing_slide_to_one_page(tmp_path):
+    long_slide = "<h2>Πολύ κείμενο</h2>" + "".join(f"<p>Γραμμή {i} με αρκετό κείμενο για να γεμίσει.</p>" for i in range(40))
+    deck = deck_with(long_slide, "<p>μετά</p>")
+    deck.slides[0].video = "pid"
+    pdf = render_pdf(deck, [ref("pid", "Φυσαλίδα")], {"pid": jpeg(tmp_path / "p.jpg")}, {"pid": "animations/01-x.mp4"})
+    reader = PdfReader(io.BytesIO(pdf))
+    assert len(reader.pages) == 2
+    assert "Animation: Φυσαλίδα" in reader.pages[0].extract_text() and "1 / 2" in reader.pages[0].extract_text()
+    assert "μετά" in reader.pages[1].extract_text()
+
+
+def test_render_docx_survives_control_characters(tmp_path):
+    deck = deck_with("<p>a\x0cb</p>", title="Τ\x1bίτλος")
+    doc = Document(io.BytesIO(render_docx(deck, [], {}, {})))
+    assert [p.text for p in doc.paragraphs if p.text] == ["ab"]
+    assert "Τίτλος" in doc.sections[0].footer.paragraphs[0].text
+
+
+def test_safe_filename_normalises_decomposed_accents():
+    assert safe_filename("Δε\u0301ντρα") == "Δέντρα"
+
+
+def test_render_pdf_caption_without_poster(tmp_path):
+    deck = deck_with("<p>a</p>")
+    deck.slides[0].video = "pid"
+    pdf = render_pdf(deck, [ref("pid", "Φυσαλίδα")], {"pid": tmp_path / "missing.jpg"}, {"pid": "animations/01-x.mp4"})
+    text = PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+    assert "Animation: Φυσαλίδα" in text and "animations/01-x.mp4" in text

@@ -17,6 +17,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from app.models import AnimationRef, Deck
+from app.slides_html import clean_text
 
 PAGE_W, PAGE_H, MARGIN = Inches(13.333), Inches(7.5), Inches(0.67)
 HEADING_FONT, BODY_FONT = "Cambria", "Calibri"
@@ -123,7 +124,7 @@ class _Writer(HTMLParser):
         if self.paragraph is None:
             self._new_paragraph()
         fmt = self.formats[-1]
-        run = self.paragraph.add_run(data)
+        run = self.paragraph.add_run(clean_text(data))
         run.font.name = HEADING_FONT if self.block in ("h1", "h2") else BODY_FONT
         run.font.size = fmt.size or SIZES["p"]
         run.bold, run.italic, run.underline = fmt.bold or None, fmt.italic or None, fmt.underline or None
@@ -176,7 +177,7 @@ def _setup_page(doc: Document, title: str) -> None:
     section.page_width, section.page_height = PAGE_W, PAGE_H
     section.left_margin = section.right_margin = section.top_margin = section.bottom_margin = MARGIN
     footer = section.footer.paragraphs[0]
-    footer.text = f"{title}\t"
+    footer.text = f"{clean_text(title)}\t"
     stops = footer.paragraph_format.tab_stops
     for inherited in (Inches(3.25), Inches(6.5)):  # the template's portrait-width centre/right stops
         stops.add_tab_stop(inherited, WD_TAB_ALIGNMENT.CLEAR)
@@ -202,12 +203,13 @@ def render_docx(deck: Deck, animations: list[AnimationRef], posters: dict[str, P
         writer.close()
         ref = refs.get(slide.video) if slide.video else None
         poster = posters.get(slide.video) if slide.video else None
-        if ref and ref.status == "ready" and poster and poster.is_file():
-            doc.add_picture(str(poster), width=Inches(7))
-            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if ref and ref.status == "ready":
+            if poster and poster.is_file():
+                doc.add_picture(str(poster), width=Inches(7))
+                doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
             caption = doc.add_paragraph()
             caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = caption.add_run(f"▶ Animation: {ref.title}")
+            run = caption.add_run(clean_text(f"▶ Animation: {ref.title}"))
             run.font.size = Pt(11)
             file = video_files.get(slide.video)
             if file:

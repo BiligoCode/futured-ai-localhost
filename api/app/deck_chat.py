@@ -166,7 +166,11 @@ def _check_language(slides: list[Slide], log: list[EditLog], language: str) -> N
 
 
 def run_chat(llm: LLM, deck: Deck, material: str, message: str, *, slide_id: str | None,
-             selection: str | None) -> tuple[str, list[Slide], list[EditLog]]:
+             selection: str | None) -> tuple[str, list[Slide], list[EditLog], list[_Edit]]:
+    """Returns (reply, slides after the edits, edit log, the validated edits themselves).
+
+    The edits come back too so the caller can re-apply them to the deck as it is when the model answers — the
+    professor may have saved in the meantime."""
     system = build_system_prompt(deck)
     messages = [{"role": "user", "content": build_user_message(deck, material, message, slide_id=slide_id,
                                                                  selection=selection)}]
@@ -177,7 +181,7 @@ def run_chat(llm: LLM, deck: Deck, material: str, message: str, *, slide_id: str
             parsed = _Reply.model_validate(extract_json(reply))
             slides, log = apply_edits(deck.slides, parsed.edits)
             _check_language(slides, log, deck.language)
-            return parsed.reply.strip(), slides, log
+            return parsed.reply.strip(), slides, log, parsed.edits
         except (ValueError, ValidationError) as exc:
             error = str(exc)
             messages = messages + [
