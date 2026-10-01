@@ -56,9 +56,24 @@ async def test_failed_revise_keeps_previous_video(tmp_path):
     llm = ScriptedLLM([VALID_CODE] * 4)
     await build_scene(store, llm, FakeRenderer([BAD]), pid, sid, instruction="red")
     s = store.get(pid).scene(sid)
-    assert s.render_status == "failed" and s.code_version == 1
+    # The previous good version stays current and exportable; the revision error is reported alongside it.
+    assert (s.render_status, s.code_version, s.last_error) == ("done", 1, "Traceback: boom")
     assert (store.scene_dir(pid, sid) / "render_v1.mp4").exists()
     assert "red" in llm.calls[0][1][0]["content"]
+
+
+async def test_failed_first_render_with_instruction_still_fails(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    await build_scene(store, ScriptedLLM([VALID_CODE] * 4), FakeRenderer([BAD]), pid, sid, instruction="red")
+    assert store.get(pid).scene(sid).render_status == "failed"
+
+
+async def test_successful_render_clears_revision_error(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    await build_scene(store, ScriptedLLM([VALID_CODE]), FakeRenderer([OK]), pid, sid)
+    await build_scene(store, ScriptedLLM([VALID_CODE] * 4), FakeRenderer([BAD]), pid, sid, instruction="red")
+    await build_scene(store, ScriptedLLM([VALID_CODE]), FakeRenderer([OK]), pid, sid, instruction="blue")
+    assert store.get(pid).scene(sid).last_error is None
 
 
 async def test_successful_revise_bumps_version(tmp_path):

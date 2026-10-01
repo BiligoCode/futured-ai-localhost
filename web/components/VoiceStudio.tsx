@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { audioUrl, clearVoice, generateAiVoice, generateAllAiVoice, updateNarration, videoUrl } from "@/lib/api";
+import { audioUrl, clearVoice, generateAiVoice, generateAllAiVoice, getProject, updateNarration, videoUrl } from "@/lib/api";
 import type { Project, Scene } from "@/lib/types";
 
 import { ExportPanel } from "./ExportPanel";
@@ -31,6 +31,8 @@ export function VoiceStudio({ project, onChange }: { project: Project; onChange:
       setBust((b) => b + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // Partial work (e.g. some scenes voiced before a failure) must show up; keep the UI in sync with the server.
+      await getProject(project.id).then(onChange).catch(() => undefined);
     } finally {
       setBusy(null);
     }

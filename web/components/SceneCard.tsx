@@ -84,9 +84,15 @@ export function SceneCard({ project, scene, index, onChange }: {
         </div>
         <p className="text-sm text-slate-600">{scene.narration}</p>
 
+        {scene.render_status === "done" && scene.last_error && (
+          <details className="rounded-lg bg-amber-50 p-3 text-sm">
+            <summary className="cursor-pointer text-amber-800">The last change could not be applied. Previous version kept.</summary>
+            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-amber-900">{scene.last_error}</pre>
+          </details>
+        )}
+
         {scene.render_status === "failed" && (
           <div className="space-y-2 rounded-lg bg-red-50 p-3 text-sm">
-            {scene.code_version > 0 && <p className="text-red-700">The last change could not be rendered. Keeping the previous version.</p>}
             {scene.last_error && (
               <details>
                 <summary className="cursor-pointer text-red-700">Show error</summary>

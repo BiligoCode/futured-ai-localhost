@@ -61,7 +61,7 @@ The LLM writes a **complete Manim Community Edition scene file** per storyboard 
 - A system prompt stating the installed Manim version, required class name `GeneratedScene`, a 16:9 frame, and the target duration (estimated from narration length at 2.5 words/second).
 - Language rule: all natural-language text (Greek or English) uses `Text(..., font="DejaVu Sans")`; `MathTex`/`Tex` only for pure math. (LaTeX breaks on Greek prose; Pango does not.)
 - Pre-render check: the code must parse (`ast.parse`) and define `class GeneratedScene`. A failed check counts as a failed attempt and goes to repair, without spending a render.
-- **Repair loop:** 1 generation + up to 3 repairs (max 4 render attempts). Repair prompt receives the code and the last 3,000 characters of the error output. After the last failure the scene is `failed`, the error is shown, and the professor can retry or revise.
+- **Repair loop:** 1 generation + up to 3 repairs (max 4 render attempts). Repair prompt receives the code and the last 3,000 characters of the error output. After the last failure the scene is `failed`, the error is shown, and the professor can retry or revise. If the scene already had a good render (a failed revision), it stays `done` on that previous version (still exportable) with `last_error` shown as "previous version kept".
 - Render timeout: 180 s per attempt; a timeout is a failed attempt with error text `"Render timed out after 180s"`.
 - **Revise:** current code + scene description + narration + professor's instruction → new code version, then the same check/render/repair loop.
 
@@ -89,8 +89,9 @@ AWS Bedrock Converse API via boto3, credentials from `.env`: `AWS_BEDROCK_ACCESS
 ### Error handling
 
 - PDF with no extractable text and no pasted text → HTTP 422 `"No readable text found in the uploaded material"`.
-- Storyboard LLM output that is not valid JSON after one retry → HTTP 502 with message.
-- On API startup, scenes stuck in `generating | rendering | repairing` (server restarted mid-job) become `failed` with `last_error = "Interrupted by server restart"`; audio stuck in `generating` becomes `failed`.
+- Storyboard LLM output that is not valid JSON after one retry → HTTP 502 with message; any other LLM/network error → HTTP 502 `"The AI model request failed: …"`.
+- A failed AI-voice attempt keeps an existing voice (status restored to `done`).
+- On API startup, scenes stuck in `generating | rendering | repairing` (server restarted mid-job) become `failed` with `last_error = "Interrupted by server restart"` (or stay `done` on their previous version if they had one); audio stuck in `generating` becomes `failed`.
 - All job failures are visible in the UI per scene; nothing fails silently.
 
 ### Pitch safety

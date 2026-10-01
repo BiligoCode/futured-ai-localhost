@@ -31,6 +31,8 @@ async def create_project(
             style=style, tone=tone, language=language)
     except StoryboardError as exc:
         raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - Bedrock/network errors must reach the UI as a readable 502
+        raise HTTPException(502, f"The AI model request failed: {exc}") from exc
     return request.app.state.store.create(title=title, concept=concept, style=style, tone=tone,
                                           language=language, material_text=material, scenes=drafts)
 

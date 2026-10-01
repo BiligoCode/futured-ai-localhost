@@ -57,10 +57,17 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
                 await store.update_scene(project_id, scene_id, render_status="repairing", last_error=error)
                 code = await asyncio.to_thread(repair_code, llm, code, error, language=language)
 
-        await store.update_scene(project_id, scene_id, render_status="failed", last_error=error)
+        await _record_failure(store, project_id, scene_id, error)
     except Exception as exc:  # noqa: BLE001 - every failure must surface on the scene
         log.exception("build_scene failed for %s/%s", project_id, scene_id)
         try:
-            await store.update_scene(project_id, scene_id, render_status="failed", last_error=str(exc) or repr(exc))
+            await _record_failure(store, project_id, scene_id, str(exc) or repr(exc))
         except Exception:  # noqa: BLE001
             log.exception("could not record failure for %s/%s", project_id, scene_id)
+
+
+async def _record_failure(store: ProjectStore, project_id: str, scene_id: str, error: str) -> None:
+    # A scene with an earlier good render keeps it (still exportable); the error is reported alongside it.
+    has_previous = store.get(project_id).scene(scene_id).code_version > 0
+    await store.update_scene(project_id, scene_id, render_status="done" if has_previous else "failed",
+                             last_error=error)

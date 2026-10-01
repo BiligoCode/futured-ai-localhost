@@ -99,7 +99,7 @@ class ProjectStore:
             for scene in project.scenes:
                 touched = False
                 if scene.render_status in BUSY_RENDER:
-                    scene.render_status = "failed"
+                    scene.render_status = "done" if scene.code_version > 0 else "failed"
                     scene.last_error = INTERRUPTED
                     touched = True
                 if scene.audio_status == "generating":

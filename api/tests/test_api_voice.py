@@ -41,6 +41,18 @@ async def test_ai_voice_failure_502(tmp_path):
     assert scene(app, pid, sids[0]).audio_status == "failed"
 
 
+@pytest.mark.slow
+async def test_ai_voice_failure_keeps_existing_recording(tmp_path, webm_no_duration):
+    app, pid, sids = make_app(tmp_path, FakeTTS(b"", fail=True))
+    async with api_client(app) as c:
+        await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/recording", files=recording(webm_no_duration))
+        r = await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/ai")
+    assert r.status_code == 502
+    s = scene(app, pid, sids[0])
+    assert (s.audio_source, s.audio_status) == ("professor", "done")
+    assert (app.state.store.scene_dir(pid, sids[0]) / "audio.wav").exists()
+
+
 async def test_audio_404_when_none(tmp_path):
     app, pid, sids = make_app(tmp_path, FakeTTS(b""))
     async with api_client(app) as c:

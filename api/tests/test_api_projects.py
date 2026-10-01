@@ -55,6 +55,14 @@ async def test_storyboard_failure_502(tmp_path):
     assert r.status_code == 502
 
 
+async def test_unexpected_llm_error_502_json(tmp_path):
+    app, _ = make_app(tmp_path, [RuntimeError("AccessDeniedException: throttled")])
+    async with api_client(app) as c:
+        r = await create(c)
+    assert r.status_code == 502
+    assert "AccessDeniedException" in r.json()["detail"]
+
+
 async def test_list_and_get(tmp_path):
     app, _ = make_app(tmp_path)
     async with api_client(app) as c:

@@ -31,7 +31,9 @@ async def generate_ai_voice(store: ProjectStore, tts: TTSProvider, project_id: s
         dst = store.scene_dir(project_id, scene_id) / AUDIO_FILE
         await asyncio.to_thread(_write_normalized, audio, ".mp3", dst)
     except Exception:
-        await store.update_scene(project_id, scene_id, audio_status="failed")
+        # A failed attempt must not drop a voice that still exists and would otherwise be exported.
+        restored = "done" if scene.audio_status == "done" else "failed"
+        await store.update_scene(project_id, scene_id, audio_status=restored)
         raise
     return await store.update_scene(project_id, scene_id, audio_source="ai", audio_status="done")
 

@@ -62,3 +62,12 @@ def test_recover_interrupted(tmp_path):
     a, b = s.get(p.id).scenes
     assert a.render_status == "failed" and a.last_error == "Interrupted by server restart"
     assert b.render_status == "done" and b.audio_status == "failed"
+
+
+def test_recover_interrupted_revision_keeps_previous_version(tmp_path):
+    s = ProjectStore(tmp_path)
+    p = new(s, [draft("A")])
+    asyncio.run(s.update_scene(p.id, p.scenes[0].id, render_status="rendering", code_version=2))
+    s.recover_interrupted()
+    a = s.get(p.id).scenes[0]
+    assert (a.render_status, a.code_version, a.last_error) == ("done", 2, "Interrupted by server restart")
