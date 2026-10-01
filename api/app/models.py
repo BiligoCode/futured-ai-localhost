@@ -16,6 +16,10 @@ class SceneDraft(BaseModel):
     narration: str = Field(min_length=1)
 
 
+class ReviseRequest(BaseModel):
+    instruction: str = Field(min_length=1)
+
+
 class StoryboardUpdate(BaseModel):
     scenes: list[SceneDraft]
 
