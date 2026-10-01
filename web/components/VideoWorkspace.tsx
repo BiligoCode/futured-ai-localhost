@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { cancelProject, composeVideo, cutUrl, generateAiNarration, removeNarration, setCaptions, startRender } from "@/lib/api";
@@ -9,6 +10,7 @@ import { clock, rangeOf } from "@/lib/time";
 import type { Cut, CutKind, Project, Scene } from "@/lib/types";
 
 import { ChangeRequest } from "./ChangeRequest";
+import { EmbedDialog } from "./deck/EmbedDialog";
 import { Icon } from "./Icon";
 import { NarrationRecorder } from "./NarrationRecorder";
 import { CurveSketch } from "./Stage";
@@ -81,6 +83,7 @@ function Player({ src, onPausedAt }: { src: string; onPausedAt: (t: number | nul
 export function VideoWorkspace({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
   const { t } = useI18n();
   const [recordFrom, setRecordFrom] = useState<string | null>(null);
+  const [embedding, setEmbedding] = useState(false);
   const [playerAt, setPlayerAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
@@ -323,6 +326,23 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
           </label>
         </section>
 
+        {project.deck_id && (
+          <section className="space-y-3 border-t border-rule pt-6" aria-labelledby="slides-heading">
+            <h2 id="slides-heading" className="font-serif text-2xl font-semibold">
+              {t.chooseSlides}
+            </h2>
+            <p className="text-sm text-muted">{t.partOfSlides}</p>
+            <button type="button" onClick={() => setEmbedding(true)} disabled={updating} className="btn btn-primary w-full" title={updating ? t.addToSlidesHint : undefined}>
+              <Icon name="slides" />
+              {t.addToSlides}
+            </button>
+            <Link href={`/decks/${project.deck_id}`} className="btn btn-ghost w-full">
+              <Icon name="back" size={16} />
+              {t.backToSlides}
+            </Link>
+          </section>
+        )}
+
         <section className="space-y-3 border-t border-rule pt-6" aria-labelledby="download-heading">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="download-heading" className="font-serif text-2xl font-semibold">
@@ -343,6 +363,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
         </section>
       </aside>
 
+      {embedding && project.deck_id && <EmbedDialog project={project} deckId={project.deck_id} onClose={() => setEmbedding(false)} />}
       {recordFrom && (
         <NarrationRecorder
           project={project}

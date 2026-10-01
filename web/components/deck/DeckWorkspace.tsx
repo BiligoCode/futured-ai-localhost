@@ -12,6 +12,7 @@ import { slideTitle } from "@/lib/slideHtml";
 import type { AnimationRef, ChatMessage, Deck, Slide } from "@/lib/types";
 import { useDeckSplit } from "@/lib/useDeckSplit";
 
+import { AnimationsMenu } from "./AnimationsMenu";
 import { DeckChat } from "./DeckChat";
 import { SlideEditor } from "./SlideEditor";
 import { SlideStrip } from "./SlideStrip";
@@ -143,6 +144,15 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     document.getElementById(`slide-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (focus) editors.get(id)?.commands.focus("end");
   }, [editors]);
+
+  useEffect(() => {
+    // Back from "Add to slides": show the slide that just received the animation.
+    if (window.location.hash !== "#embedded") return;
+    const target = [...deck.slides].reverse().find((s) => s.video);
+    history.replaceState(null, "", window.location.pathname);
+    if (target) setTimeout(() => jumpTo(target.id), 150);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the deck this page opened with
+  }, []);
 
   function addSlide() {
     const slide: Slide = { id: newSlideId(), html: "", video: null };
@@ -293,8 +303,11 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
               {doc.title}
             </button>
           )}
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted">
-            <span>{t.deckMeta(doc.slides.length, linkedCount)}</span>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted">
+            <span className="inline-flex items-center gap-1">
+              {t.slideCount(doc.slides.length)} ·
+              <AnimationsMenu animations={doc.animations} label={t.animationCount(linkedCount)} />
+            </span>
             <span aria-live="polite" className={`flex items-center gap-1.5 ${saveState === "error" ? "text-danger-ink" : ""}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${saveState === "saved" ? "bg-manim" : saveState === "error" ? "bg-rec" : "bg-gold pulse-soft"}`} aria-hidden="true" />
               {saveLabel}
@@ -304,7 +317,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
                 </button>
               )}
             </span>
-          </p>
+          </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button type="button" onClick={() => void createAnimation()} className="btn btn-secondary">
