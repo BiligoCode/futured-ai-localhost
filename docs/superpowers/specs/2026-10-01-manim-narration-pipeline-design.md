@@ -84,7 +84,7 @@ Per scene, with `D_v` = clip duration and `D_a` = audio duration:
 
 ### LLM
 
-AWS Bedrock Converse API via boto3, credentials from `.env`: `AWS_BEDROCK_ACCESS_KEY_ID`, `AWS_BEDROCK_SECRET_ACCESS_KEY`, `AWS_BEDROCK_REGION` (default `eu-central-1`), `AWS_BEDROCK_MODEL` (default `eu.anthropic.claude-sonnet-4-5-20250929-v1:0`). Course material sent to the LLM is truncated to 60,000 characters.
+AWS Bedrock Converse API via boto3, credentials from `.env`: `AWS_BEDROCK_ACCESS_KEY_ID`, `AWS_BEDROCK_SECRET_ACCESS_KEY`, `AWS_BEDROCK_REGION` (default `us-east-1`), `AWS_BEDROCK_MODEL` (default chosen by a Manim codegen comparison during implementation; provisional `deepseek.v3.2`). The hackathon AWS account's organization policy blocks every Anthropic Claude model (only cross-region profiles exist, and their destination regions are denied), so the default is an in-region open model; the code is model-agnostic via Converse. Course material sent to the LLM is truncated to 60,000 characters.
 
 ### Error handling
 
