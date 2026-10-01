@@ -8,8 +8,8 @@ class MediaError(RuntimeError):
     pass
 
 
-def _run(cmd: list[str]) -> str:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+def _run(cmd: list[str], cwd: Path | None = None) -> str:
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if proc.returncode != 0:
         raise MediaError(proc.stderr.strip()[-1000:] or f"{cmd[0]} failed")
     return proc.stdout
@@ -66,8 +66,10 @@ def _video_graph(video_s: float, holds: list[tuple[float, float]], tail: float) 
     return ";".join(parts)
 
 
-def encode_segment(video: Path, audio: Path | None, out: Path, holds: list[tuple[float, float]] = ()) -> float:
-    """Encode one scene: its animation with frozen frames at each hold, and its narration.
+def encode_segment(video: Path, audio: Path | None, out: Path, holds: list[tuple[float, float]] = (),
+                   captions: Path | None = None) -> float:
+    """Encode one scene: its animation with frozen frames at each hold, its narration, and optional captions
+    (an ASS file burned into the picture).
 
     The last frame is held until the narration ends. Returns the segment's duration in seconds.
     """
@@ -75,11 +77,22 @@ def encode_segment(video: Path, audio: Path | None, out: Path, holds: list[tuple
     held_s = video_s + sum(d for _, d in holds)
     total = max(held_s, probe_duration(audio) + TAIL_PAD_S) if audio else held_s
     audio_input = ["-i", str(audio)] if audio else ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
-    graph = f"{_video_graph(video_s, list(holds), max(0.0, total - held_s))};[1:a]aresample=44100,apad[a]"
-    Path(out).parent.mkdir(parents=True, exist_ok=True)
-    _run(["ffmpeg", "-v", "error", "-y", "-i", str(video), *audio_input, "-filter_complex", graph,
-          "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}", *ENCODE, str(out)])
+    graph = _video_graph(video_s, list(holds), max(0.0, total - held_s))
+    out = Path(out).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        if captions:
+            # Run inside a temp dir so the subtitle path needs no filtergraph escaping.
+            shutil.copy(captions, Path(tmp) / "captions.ass")
+            graph = graph.removesuffix("[v]") + ",ass=captions.ass[v]"
+        graph += ";[1:a]aresample=44100,apad[a]"
+        _run(["ffmpeg", "-v", "error", "-y", "-i", str(Path(video).resolve()), *_abs(audio_input), "-filter_complex",
+              graph, "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}", *ENCODE, str(out)], cwd=Path(tmp))
     return probe_duration(out)
+
+
+def _abs(audio_input: list[str]) -> list[str]:
+    return ["-i", str(Path(audio_input[1]).resolve())] if audio_input[0] == "-i" else audio_input
 
 
 def concat(parts: list[Path], out: Path) -> None:

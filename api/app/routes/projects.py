@@ -3,7 +3,8 @@ import asyncio
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app.ingest import EmptyMaterialError, build_material
-from app.models import DurationRange, Language, Project, Scene, StoryboardUpdate
+from app.models import DurationRange, Language, Project, ProjectSettings, Scene, StoryboardUpdate
+from app.routes.common import schedule_refresh
 from app.store import new_scene_id
 from app.storyboard import StoryboardError, generate_storyboard
 
@@ -66,3 +67,17 @@ async def update_storyboard(project_id: str, body: StoryboardUpdate, request: Re
         project.scenes = scenes
 
     return await store.mutate(project_id, apply)
+
+
+@router.patch("/projects/{project_id}/settings")
+async def update_settings(project_id: str, body: ProjectSettings, request: Request) -> Project:
+    """Project options that change the finished video, e.g. burned-in captions."""
+    store = request.app.state.store
+
+    def apply(project: Project) -> None:
+        if body.captions is not None:
+            project.captions = body.captions
+
+    await store.mutate(project_id, apply)
+    await schedule_refresh(request.app, project_id)
+    return store.get(project_id)

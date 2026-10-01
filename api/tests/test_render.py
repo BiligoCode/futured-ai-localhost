@@ -78,9 +78,9 @@ CLEAN_LAYOUT = scene_with("""cells = VGroup(*[VGroup(Square(0.9), Text(str(v), f
                         for v in [2, 5, 8, 12, 16, 23]]).arrange(RIGHT, buff=0.05)
         for c in cells:
             c[1].move_to(c[0])
-        first = Text("Βρέθηκε στη θέση 5", font="DejaVu Sans").to_edge(DOWN)
+        first = Text("Βρέθηκε στη θέση 5", font="DejaVu Sans").to_edge(DOWN, buff=1.5)
         self.play(Create(cells), Write(first))
-        self.play(ReplacementTransform(first, Text("Βρέθηκε!", font="DejaVu Sans").to_edge(DOWN)))""")
+        self.play(ReplacementTransform(first, Text("Βρέθηκε!", font="DejaVu Sans").to_edge(DOWN, buff=1.5)))""")
 
 
 @pytest.mark.slow
@@ -89,9 +89,12 @@ async def test_layout_check_reports_stacked_labels_and_captions(tmp_path):
     code.write_text(SCREENSHOT_BUG, encoding="utf-8")
     r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
     assert r.ok, r.error
-    assert len(r.issues) == 2
-    assert "6 texts are drawn on top of each other" in r.issues[0]
-    assert 'Text "Βρέθηκε στη θέση 5"' in r.issues[1] and 'Text "Βρέθηκε!"' in r.issues[1]
+    overlaps = [i for i in r.issues if "drawn on top of each other" in i]
+    assert len(overlaps) == 2
+    assert "6 texts are drawn on top of each other" in overlaps[0]
+    assert 'Text "Βρέθηκε στη θέση 5"' in overlaps[1] and 'Text "Βρέθηκε!"' in overlaps[1]
+    # Both captions also sit on the bottom edge, which is reserved for burned-in captions.
+    assert any("caption strip" in i for i in r.issues)
 
 
 @pytest.mark.slow
@@ -120,3 +123,13 @@ async def test_layout_check_reports_where_cut_off_text_is(tmp_path):
     r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
     [issue] = r.issues
     assert "cut off by the edge of the frame: it spans x -" in issue and "visible frame is x -7.11..7.11" in issue
+
+
+@pytest.mark.slow
+async def test_layout_check_keeps_the_caption_strip_free(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(scene_with("""self.add(NumberPlane())  # full-frame backgrounds are fine
+        self.play(Create(Square(1).to_edge(DOWN, buff=0.2)))"""), encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    [issue] = r.issues
+    assert issue.startswith("At 1.0s: Square reaches into the caption strip") and "below y -2.70" in issue

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.llm import LLM
 from app.models import Cut, Project
 from app.parsing import extract_json
-from app.storyboard import language_name
+from app.storyboard import check_language, language_name
 
 _TIMESTAMP = re.compile(r"(?<![\d:])(\d{1,2}):([0-5]\d)(?![\d:])")
 
@@ -21,7 +21,8 @@ description clearly matches another part. A request about the whole video (e.g. 
 concerns every part it affects.
 - "animation": true when what is shown on screen must change. Then "instruction" is a precise, self-contained \
 instruction for the animator about this part only, in English (quote any on-screen text exactly).
-- "narration": the complete new narration for the part, in {language}, when what is said must change (explain \
+- "narration": the complete new narration for the part, in {language} (whatever language the request is \
+written in), when what is said must change (explain \
 differently, more or less detail, correct a statement); otherwise null. When the explanation changes in a way \
 the visuals should follow, also set "animation".
 - "summary": one short sentence in {language} telling the professor what you will change.
@@ -100,6 +101,8 @@ def _validate(plan: _Plan, project: Project) -> list[Edit]:
         if not animation and narration is None:
             continue
         scene = project.scenes[e.part - 1]
+        if narration:
+            check_language([narration], project.language)
         edits[scene.id] = Edit(scene_id=scene.id, animation=animation, instruction=e.instruction.strip(),
                                narration=narration if narration != scene.narration else None, summary=e.summary)
     if not edits:

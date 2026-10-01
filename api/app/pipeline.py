@@ -3,7 +3,7 @@ import logging
 import re
 from pathlib import Path
 
-from app.codegen import MAX_REPAIRS, fix_layout, generate_code, precheck, repair_code, revise_code
+from app.codegen import MAX_REPAIRS, fix_layout, generate_code, outline, precheck, repair_code, revise_code
 from app.llm import LLM
 from app.models import Project
 from app.render import Renderer
@@ -40,7 +40,7 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
         else:
             code = await asyncio.to_thread(generate_code, llm, scene, concept=project.concept,
                                            style=project.style, material=store.material(project_id),
-                                           language=language)
+                                           language=language, video_outline=outline(project.scenes, scene_id))
 
         error = ""
         repairs = layout_fixes = attempt = 0

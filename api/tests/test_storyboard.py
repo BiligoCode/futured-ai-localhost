@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.storyboard import StoryboardError, generate_storyboard
@@ -33,6 +35,30 @@ def test_retries_on_empty_scene_field():
     assert len(llm.calls) == 2
 
 
-def test_raises_after_second_failure():
+def test_raises_after_three_failures():
     with pytest.raises(StoryboardError):
-        generate_storyboard(ScriptedLLM(["x", "y"]), **ARGS)
+        generate_storyboard(ScriptedLLM(["x", "y", "z"]), **ARGS)
+
+
+ENGLISH_JSON = json.dumps({"title": "Gradient descent", "scenes": [
+    {"title": "The problem", "visual": "A cost curve", "narration": "We want the minimum of the cost function."}]})
+
+
+def test_selected_language_wins_over_the_language_of_the_input():
+    # The professor typed English, but selected Greek: an English draft is rejected and redone in Greek.
+    llm = ScriptedLLM([ENGLISH_JSON, STORYBOARD_JSON])
+    title, _ = generate_storyboard(llm, **{**ARGS, "concept": "gradient descent", "material": "English notes"})
+    assert title == "Κάθοδος κλίσης"
+    assert "must be written in Greek" in llm.calls[1][1][-1]["content"]
+    assert "Write the video in: Greek" in llm.calls[0][1][0]["content"]
+
+
+def test_english_selected_rejects_greek_draft():
+    llm = ScriptedLLM([STORYBOARD_JSON, ENGLISH_JSON])
+    title, _ = generate_storyboard(llm, **{**ARGS, "language": "en"})
+    assert title == "Gradient descent" and "must be written in English" in llm.calls[1][1][-1]["content"]
+
+
+def test_greek_with_notation_counts_as_greek():
+    from app.storyboard import check_language
+    check_language(["Η πολυπλοκότητα είναι O(n log n) και ο πίνακας dp[i] γεμίζει από αριστερά"], "el")

@@ -3,8 +3,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import Settings, load_settings
+from app.i18n import request_language, translate
 from app.jobs import JobRunner
 from app.llm import LLM, BedrockLLM
 from app.render import Renderer, make_renderer
@@ -42,13 +44,21 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
                                      settings.data_dir / "tts_cache")
     app.state.jobs = JobRunner()
 
+    def error(request: Request, status: int, detail: str, headers=None) -> JSONResponse:
+        return JSONResponse({"detail": translate(detail, request_language(request))}, status_code=status,
+                            headers=headers)
+
     @app.exception_handler(ProjectNotFound)
-    async def project_not_found(_: Request, exc: ProjectNotFound) -> JSONResponse:
-        return JSONResponse({"detail": "Project not found"}, status_code=404)
+    async def project_not_found(request: Request, exc: ProjectNotFound) -> JSONResponse:
+        return error(request, 404, "Project not found")
 
     @app.exception_handler(SceneNotFound)
-    async def scene_not_found(_: Request, exc: SceneNotFound) -> JSONResponse:
-        return JSONResponse({"detail": "Scene not found"}, status_code=404)
+    async def scene_not_found(request: Request, exc: SceneNotFound) -> JSONResponse:
+        return error(request, 404, "Scene not found")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return error(request, exc.status_code, exc.detail, getattr(exc, "headers", None))
 
     @app.get("/health")
     def health() -> dict[str, str]:
