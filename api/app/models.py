@@ -103,6 +103,7 @@ class Project(BaseModel):
     preview: Cut = Cut()  # the animation alone: what the professor narrates over
     final: Cut = Cut()    # the animation with its narration
     narrating: bool = False
+    captions: bool = False  # burn captions into the parts narrated by the AI voice
 
     def scene(self, scene_id: str) -> Scene:
         for s in self.scenes:
@@ -120,8 +121,9 @@ class Project(BaseModel):
         return "|".join(f"{s.id}:{s.code_version}" for s in self.scenes)
 
     def final_signature(self) -> str:
-        return "|".join(f"{s.id}:{s.code_version}:{s.audio_version if s.audio_status == 'done' else 0}"
-                        for s in self.scenes)
+        parts = "|".join(f"{s.id}:{s.code_version}:{s.audio_version if s.audio_status == 'done' else 0}"
+                         for s in self.scenes)
+        return parts + ("|cc" if self.captions else "")
 
     @computed_field
     @property
@@ -145,6 +147,10 @@ class EditSummary(BaseModel):
     summary: str
     animation: bool
     narration: bool
+
+
+class ProjectSettings(BaseModel):
+    captions: bool | None = None
 
 
 class ReviseResult(BaseModel):

@@ -5,10 +5,12 @@ import { useParams } from "next/navigation";
 import { Stepper } from "@/components/Stepper";
 import { StoryboardEditor } from "@/components/StoryboardEditor";
 import { VideoWorkspace } from "@/components/VideoWorkspace";
+import { useI18n } from "@/lib/i18n";
 import { useProject } from "@/lib/useProject";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useI18n();
   const { project, error, setProject } = useProject(id);
 
   if (error && !project)
@@ -20,7 +22,7 @@ export default function ProjectPage() {
   if (!project)
     return (
       <p className="text-muted" aria-live="polite">
-        Loading…
+        {t.loading}
       </p>
     );
 

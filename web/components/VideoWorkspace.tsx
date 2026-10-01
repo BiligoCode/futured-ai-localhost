@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 
-import { composeVideo, cutUrl, generateAiNarration, removeNarration, startRender } from "@/lib/api";
+import { composeVideo, cutUrl, generateAiNarration, removeNarration, setCaptions, startRender } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+import type { Messages } from "@/lib/messages";
 import { clock, rangeOf } from "@/lib/time";
 import type { Cut, CutKind, Project, Scene } from "@/lib/types";
 
@@ -13,11 +15,11 @@ import { CurveSketch } from "./Stage";
 
 const BUSY = new Set(["generating", "rendering", "repairing"]);
 
-function phaseLabel(scenes: Scene[]): string {
-  if (scenes.some((s) => s.render_status === "repairing" && s.last_error?.startsWith("Layout:"))) return "Checking the layout and tidying it up…";
-  if (scenes.some((s) => s.render_status === "repairing")) return "Fixing a problem in the animation…";
-  if (scenes.some((s) => s.render_status === "rendering")) return "Rendering the animation…";
-  return "Writing the animation…";
+function phaseLabel(scenes: Scene[], t: Messages): string {
+  if (scenes.some((s) => s.render_status === "repairing" && s.last_error?.startsWith("Layout:"))) return t.phaseLayout;
+  if (scenes.some((s) => s.render_status === "repairing")) return t.phaseFixing;
+  if (scenes.some((s) => s.render_status === "rendering")) return t.phaseRendering;
+  return t.phaseWriting;
 }
 
 /** A slim bar under the player: part boundaries as ticks, parts being changed in gold. */
@@ -76,6 +78,7 @@ function Player({ src, onPausedAt }: { src: string; onPausedAt: (t: number | nul
 }
 
 export function VideoWorkspace({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
+  const { t } = useI18n();
   const [recordFrom, setRecordFrom] = useState<string | null>(null);
   const [playerAt, setPlayerAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,15 +111,15 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             {!stuck && <CurveSketch className="mx-auto w-full max-w-xs" />}
             <div className="space-y-2">
               <p className="font-serif text-2xl leading-tight font-semibold sm:text-3xl">
-                {stuck ? "Part of the video could not be created" : ready === scenes.length ? "Putting your video together…" : "Lara is creating your video"}
+                {stuck ? t.partFailed : ready === scenes.length ? t.puttingTogether : t.creating}
               </p>
-              {!stuck && ready < scenes.length && <p className="text-sm text-stage-muted">{phaseLabel(busyScenes)}</p>}
+              {!stuck && ready < scenes.length && <p className="text-sm text-stage-muted">{phaseLabel(busyScenes, t)}</p>}
             </div>
             <div className="space-y-2">
               <div
                 className="mx-auto h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-stage-raised"
                 role="progressbar"
-                aria-label="Parts ready"
+                aria-label={t.partsReadyLabel}
                 aria-valuemin={0}
                 aria-valuemax={scenes.length}
                 aria-valuenow={ready}
@@ -127,21 +130,21 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
                 />
               </div>
               <p className="text-xs text-stage-muted tabular-nums">
-                {ready} of {scenes.length} parts ready
+                {t.partsReady(ready, scenes.length)}
               </p>
             </div>
             {stuck && (
               <button type="button" onClick={() => act(() => startRender(project.id))} disabled={acting} className="btn btn-primary">
-                Try again
+                {t.tryAgain}
               </button>
             )}
           </div>
         </div>
         {preview.status === "failed" && (
           <Notice tone="error">
-            The video could not be put together: {preview.error}{" "}
+            {t.composeFailed(preview.error ?? "")}{" "}
             <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-semibold underline underline-offset-2">
-              Try again
+              {t.tryAgain}
             </button>
           </Notice>
         )}
@@ -165,14 +168,15 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
 
   const narrationLabel =
     voiced.length === 0
-      ? "No narration yet"
+      ? t.narrationNone
       : sources.size > 1
-        ? "Narrated with your voice and the AI voice"
+        ? t.narrationMixed
         : sources.has("professor")
           ? voiced.length === scenes.length
-            ? "Narrated with your voice"
-            : "Your voice covers part of the video; the rest is silent"
-          : "Narrated with the AI voice";
+            ? t.narrationYours
+            : t.narrationPartial
+          : t.narrationAi;
+  const hasAiVoice = sources.has("ai");
 
   const recordDisabled = acting || project.narrating || busyScenes.length > 0 || preview.status !== "done" || project.preview_outdated;
   const aiDisabled = acting || project.narrating || (voiced.length === scenes.length && !sources.has("professor") && !voiceFailed);
@@ -187,28 +191,28 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
         <div className="space-y-2" aria-live="polite">
           {changing.length > 0 && (
             <Notice tone="warn">
-              Changing {changing.join(", ")}… {phaseLabel(busyScenes)} The video updates when it&apos;s ready.
+              {t.changing(changing.join(", "), phaseLabel(busyScenes, t))}
             </Notice>
           )}
-          {changing.length === 0 && updating && <Notice tone="info">Updating the video…</Notice>}
+          {changing.length === 0 && updating && <Notice tone="info">{t.updatingVideo}</Notice>}
           {unapplied.map((s) => (
             <Notice key={s.id} tone="warn">
-              The change at {rangeOf(cut, s.id) ?? "one part"} could not be applied; the previous version is kept. Try describing it differently.
+              {t.unapplied(rangeOf(cut, s.id) ?? t.onePart)}
             </Notice>
           ))}
           {failedScenes.length > 0 && busyScenes.length === 0 && (
             <Notice tone="error">
-              Part of the video could not be rebuilt.{" "}
+              {t.rebuildFailed}{" "}
               <button type="button" onClick={() => act(() => startRender(project.id))} className="font-semibold underline underline-offset-2">
-                Try again
+                {t.tryAgain}
               </button>
             </Notice>
           )}
           {cutFailed && (
             <Notice tone="error">
-              The video could not be put together: {project[cutFailed].error}{" "}
+              {t.composeFailed(project[cutFailed].error ?? "")}{" "}
               <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-semibold underline underline-offset-2">
-                Try again
+                {t.tryAgain}
               </button>
             </Notice>
           )}
@@ -227,23 +231,23 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
         <section className="panel space-y-4 p-5" aria-labelledby="narration-heading">
           <div>
             <h2 id="narration-heading" className="font-serif text-2xl font-semibold">
-              Narration
+              {t.narration}
             </h2>
             <p className="mt-0.5 flex items-center gap-2 text-sm text-muted" aria-live="polite">
               {project.narrating && <span className="pulse-soft h-2 w-2 rounded-full bg-gold" aria-hidden="true" />}
-              {project.narrating ? "Generating the AI voice…" : narrationLabel}
+              {project.narrating ? t.generatingAi : narrationLabel}
             </p>
           </div>
 
           {stale.map((s) => (
             <Notice key={s.id} tone="warn">
-              {rangeOf(preview, s.id)} changed after you recorded it.{" "}
+              {t.staleChanged(rangeOf(preview, s.id) ?? t.onePart)}{" "}
               <button type="button" onClick={() => setRecordFrom(s.id)} className="font-semibold underline underline-offset-2">
-                Re-record from {clock(preview.segments.find((g) => g.scene_id === s.id)?.start ?? 0)}
+                {t.rerecordFrom(clock(preview.segments.find((g) => g.scene_id === s.id)?.start ?? 0))}
               </button>
             </Notice>
           ))}
-          {voiceFailed && !project.narrating && <Notice tone="error">The AI voice failed for part of the video. Try again below.</Notice>}
+          {voiceFailed && !project.narrating && <Notice tone="error">{t.aiFailed}</Notice>}
 
           <div className="space-y-2">
             <button
@@ -254,14 +258,14 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             >
               <Icon name="mic" size={20} className="shrink-0" />
               <span>
-                {sources.has("professor") ? "Record again" : "Record your voice"}
-                <span className="block text-xs font-normal text-white/80">Pause the animation anytime to explain longer.</span>
+                {sources.has("professor") ? t.recordAgain : t.recordVoice}
+                <span className="block text-xs font-normal text-white/80">{t.recordHint}</span>
               </span>
             </button>
             <button
               type="button"
               onClick={() => {
-                if (sources.has("professor") && !confirm("Replace your recording with the AI voice?")) return;
+                if (sources.has("professor") && !confirm(t.confirmReplace)) return;
                 void act(() => generateAiNarration(project.id));
               }}
               disabled={aiDisabled}
@@ -269,32 +273,49 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             >
               <Icon name="voice" size={20} className="shrink-0 text-accent" />
               <span>
-                {project.narrating ? "Generating…" : "Use the AI voice"}
-                <span className="block text-xs font-normal text-muted">Reads the script in a natural voice.</span>
+                {project.narrating ? t.generating : t.useAi}
+                <span className="block text-xs font-normal text-muted">{t.aiHint}</span>
               </span>
             </button>
           </div>
           {voiced.length > 0 && (
             <button
               type="button"
-              onClick={() => confirm("Remove all narration?") && act(() => removeNarration(project.id))}
+              onClick={() => confirm(t.confirmRemove) && act(() => removeNarration(project.id))}
               disabled={acting || project.narrating}
               className="btn btn-ghost -ml-2 text-sm hover:!text-rec"
             >
               <Icon name="trash" size={16} />
-              Remove narration
+              {t.removeNarration}
             </button>
           )}
+
+          <label className="flex cursor-pointer items-start gap-3 border-t border-rule pt-4">
+            <input
+              type="checkbox"
+              checked={project.captions}
+              disabled={acting}
+              onChange={(e) => act(() => setCaptions(project.id, e.currentTarget.checked))}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+            />
+            <span>
+              <span className="block text-sm font-semibold">{t.captions}</span>
+              <span className="block text-xs text-muted">{hasAiVoice || !voiced.length ? t.captionsHint : t.captionsNeedAi}</span>
+              {project.captions && hasAiVoice && project.final.status === "building" && (
+                <span className="mt-1 block text-xs text-gold-ink">{t.captionsUpdating}</span>
+              )}
+            </span>
+          </label>
         </section>
 
         <section className="space-y-3 border-t border-rule pt-6" aria-labelledby="download-heading">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="download-heading" className="font-serif text-2xl font-semibold">
-              Download
+              {t.download}
             </h2>
             {cut.duration > 0 && <span className="text-sm text-muted tabular-nums">{clock(cut.duration)}</span>}
           </div>
-          <p className="text-sm text-muted">{kind === "final" ? "MP4 with narration." : "MP4, animation only. Add narration to include a voice."}</p>
+          <p className="text-sm text-muted">{kind === "final" ? t.downloadNarrated : t.downloadAnimation}</p>
           <a
             href={updating ? undefined : cutUrl(project.id, kind, cut.version)}
             download
@@ -302,7 +323,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             className="btn btn-primary w-full"
           >
             <Icon name="download" />
-            {updating ? "Updating the video…" : "Download MP4"}
+            {updating ? t.updatingVideo : t.downloadMp4}
           </a>
         </section>
       </aside>

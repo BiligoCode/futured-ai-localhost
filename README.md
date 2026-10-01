@@ -12,7 +12,13 @@ The professor only ever sees a single video:
   animation, its narration, or both. Only that part is re-rendered and re-encoded.
 - **Record your voice** over the whole animation. Pause the animation at any moment to explain longer
   (Space); the pause is kept in the final video as a held frame. Re-record from any point later.
-- **AI voice** narrates the whole script instead.
+- **AI voice** narrates the whole script instead. With **Captions** on, the AI narration is burned into the
+  video as captions, timed from ElevenLabs' character timestamps. Every animation keeps the bottom strip of the
+  frame free for them (a codegen rule the layout gate enforces).
+
+**Languages.** The interface is in Greek (default) or English, switched top right (stored in the `lara-lang`
+cookie; the API translates its messages from the `X-Lara-Lang` header). The *video's* language is only the one
+selected in the setup form: drafts written in another language or script are rejected and redone.
 
 **Layout quality gate.** Every render runs through `app/manim_runner.py`, which checks the frame after each
 animation for text drawn on top of other text, text cut off by the frame edge, and unreadably small text.

@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cutUrl, uploadTake } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { clock } from "@/lib/time";
 import type { Hold, Project } from "@/lib/types";
 
 import { Icon } from "./Icon";
 
 type Phase = "loading" | "ready" | "recording" | "recorded" | "uploading";
+type Paused = "no" | "paused" | "ended";
 // Wall-clock time the animation fell behind (e.g. a decoding hiccup) that is worth keeping as a pause.
 const DRIFT_S = 0.15;
+const MIN_HOLD_S = 0.05;
 
 /** Where the animation is (`v`) and whether it is held, `r` seconds into a take that started at `start`. */
 function videoTimeAt(r: number, start: number, holds: Hold[]): { v: number; held: boolean } {
@@ -24,12 +27,16 @@ function videoTimeAt(r: number, start: number, holds: Hold[]): { v: number; held
   return { v: start + r - shift, held: false };
 }
 
+/** `play()` rejects when a pause interrupts it; that is expected here, not an error. */
+const play = (media: HTMLMediaElement | null) => media?.play().catch(() => undefined);
+
 export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
   project: Project;
   fromScene: string;
   onDone: (p: Project) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -37,43 +44,59 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
   const holdsRef = useRef<Hold[]>([]);
   const startedAt = useRef(0); // performance.now() when the take started
   const pausedAt = useRef<{ video: number; wall: number } | null>(null);
+  // The source of truth for pause state while recording; `paused` mirrors it for rendering.
+  const pausedRef = useRef<Paused>("no");
+  const discardRef = useRef(false);
+  // Between pressing Start and the microphone being ready: a second start is ignored, a Space press is queued.
+  const startingRef = useRef(false);
+  const queuedToggle = useRef(false);
   const reviewFrame = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // The video is fixed for the whole session: a background update must not swap it under a take.
+  const [preview] = useState(() => project.preview);
   const [src, setSrc] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [paused, setPaused] = useState<"no" | "paused" | "ended">("no");
+  const [paused, setPausedState] = useState<Paused>("no");
   const [now, setNow] = useState(0);
   const [pauseWall, setPauseWall] = useState<number | null>(null);
   const [videoTime, setVideoTime] = useState(0);
   const [take, setTake] = useState<{ blob: Blob; url: string; holds: Hold[] } | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const segments = project.preview.segments;
+  const segments = preview.segments;
   const startIndex = Math.max(0, segments.findIndex((s) => s.scene_id === fromScene));
   const start = segments[startIndex]?.start ?? 0;
   const current = segments.findIndex((s) => videoTime >= s.start && videoTime < s.end);
-  const shownIndex = current === -1 ? (videoTime >= project.preview.duration ? segments.length - 1 : startIndex) : current;
+  const shownIndex = current === -1 ? (videoTime >= preview.duration ? segments.length - 1 : startIndex) : current;
   const sceneOf = (i: number) => project.scenes.find((s) => s.id === segments[i]?.scene_id);
+
+  const setPaused = (p: Paused) => {
+    pausedRef.current = p;
+    setPausedState(p);
+  };
 
   // Load the whole animation up front so playback never stalls while recording.
   useEffect(() => {
     let url: string | null = null;
     let cancelled = false;
-    fetch(cutUrl(project.id, "preview", project.preview.version))
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("Could not load the video"))))
+    fetch(cutUrl(project.id, "preview", preview.version))
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("load"))))
       .then((blob) => {
         if (cancelled) return;
         url = URL.createObjectURL(blob);
         setSrc(url);
         setPhase("ready");
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch(() => !cancelled && setError(t.couldNotLoadVideo));
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [project.id, project.preview.version]);
+    // Loaded once per session; the language of the error message does not matter for reloading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, preview.version]);
 
   // Move focus into the dialog so keyboard and screen-reader users land in it, and return it on close.
   useEffect(() => {
@@ -82,10 +105,23 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
     return () => opener?.focus();
   }, []);
 
+  const releaseMic = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const stopReview = () => {
+    cancelAnimationFrame(reviewFrame.current);
+    audioRef.current?.pause();
+    videoRef.current?.pause();
+    setReviewing(false);
+  };
+
   useEffect(
     () => () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      discardRef.current = true;
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       cancelAnimationFrame(reviewFrame.current);
     },
     [],
@@ -101,10 +137,10 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
     return () => clearInterval(timer);
   }, [phase]);
 
-  const seek = (t: number) => {
+  const seek = (time: number) => {
     const v = videoRef.current;
-    if (v) v.currentTime = t;
-    setVideoTime(t);
+    if (v) v.currentTime = time;
+    setVideoTime(time);
   };
 
   /** Keep the take's wall clock and the animation in step: any time the animation lost becomes a pause. */
@@ -114,60 +150,118 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
     if (drift > DRIFT_S) holdsRef.current.push({ at: videoNow, duration: drift });
   };
 
+  const closeHold = (wall: number) => {
+    if (!pausedAt.current) return;
+    holdsRef.current.push({ at: pausedAt.current.video, duration: (wall - pausedAt.current.wall) / 1000 });
+    pausedAt.current = null;
+  };
+
   async function startRecording() {
+    if (startingRef.current || isRecording()) return;
+    startingRef.current = true;
+    queuedToggle.current = false;
+    try {
+      await beginTake();
+    } finally {
+      startingRef.current = false;
+    }
+    if (queuedToggle.current && isRecording()) togglePause();
+  }
+
+  // A function, not an inline check, so TypeScript does not assume the state is unchanged across `await`.
+  function isRecording() {
+    return recorderRef.current?.state === "recording";
+  }
+
+  async function beginTake() {
     setError(null);
+    stopReview(); // a playback still running would drive the video (and be picked up by the microphone)
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError(t.micUnsupported);
+      return;
+    }
     try {
       streamRef.current ??= await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      setError("Microphone access was denied. Allow microphone access in your browser to record your voice.");
+      setError(t.micDenied);
       return;
     }
-    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "";
-    const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+    let recorder: MediaRecorder;
+    try {
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "";
+      recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+    } catch {
+      releaseMic();
+      setError(t.micUnsupported);
+      return;
+    }
+    const hadTake = take !== null;
     const chunks: Blob[] = [];
     holdsRef.current = [];
     pausedAt.current = null;
+    discardRef.current = false;
     seek(start);
     recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
-    recorder.onstart = () => {
-      startedAt.current = performance.now();
-      void videoRef.current?.play();
-    };
     recorder.onstop = () => {
+      releaseMic();
+      videoRef.current?.pause();
+      setPaused("no");
+      if (discardRef.current) return;
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-      setTake({ blob, url: URL.createObjectURL(blob), holds: [...holdsRef.current] });
+      if (blob.size === 0) {
+        setError(t.emptyTake);
+        setPhase(hadTake ? "recorded" : "ready");
+        return;
+      }
+      setTake({ blob, url: URL.createObjectURL(blob), holds: holdsRef.current.filter((h) => h.duration > MIN_HOLD_S) });
       setPhase("recorded");
     };
+    recorder.onerror = () => {
+      discardRef.current = true;
+      if (recorder.state !== "inactive") recorder.stop();
+      releaseMic();
+      videoRef.current?.pause();
+      setPaused("no");
+      setError(t.recorderFailed);
+      setPhase(hadTake ? "recorded" : "ready");
+    };
     recorderRef.current = recorder;
+    try {
+      recorder.start();
+    } catch {
+      releaseMic();
+      setError(t.micUnsupported);
+      return;
+    }
+    // The clock starts with the animation, so a pause pressed right away is measured correctly.
+    startedAt.current = performance.now();
     setPaused("no");
     setPhase("recording");
-    recorder.start();
+    void play(videoRef.current);
   }
 
-  const togglePause = useCallback(() => {
+  function togglePause() {
     const v = videoRef.current;
-    if (!v || phase !== "recording" || paused === "ended") return;
+    if (!v || recorderRef.current?.state !== "recording" || pausedRef.current === "ended") return;
     const wall = performance.now();
-    if (paused === "no") {
+    if (pausedRef.current === "no") {
       absorbDrift(v.currentTime, wall);
       pausedAt.current = { video: v.currentTime, wall };
       v.pause();
       setPauseWall(wall);
       setPaused("paused");
-    } else if (pausedAt.current) {
-      holdsRef.current.push({ at: pausedAt.current.video, duration: (wall - pausedAt.current.wall) / 1000 });
-      pausedAt.current = null;
-      void v.play();
+    } else {
+      closeHold(wall);
+      void play(v);
       setPaused("no");
     }
-    // absorbDrift reads only refs and `start`, which is fixed for the dialog's lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, paused]);
+  }
 
   function onEnded() {
-    if (phase !== "recording") return;
+    if (recorderRef.current?.state !== "recording") return;
     const wall = performance.now();
-    const end = videoRef.current?.duration ?? project.preview.duration;
+    const end = videoRef.current?.duration ?? preview.duration;
+    if (pausedRef.current === "paused") closeHold(wall);
     absorbDrift(end, wall);
     pausedAt.current = { video: end, wall };
     setPauseWall(wall);
@@ -175,62 +269,93 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
   }
 
   function stopRecording() {
-    const v = videoRef.current;
+    const recorder = recorderRef.current;
     const wall = performance.now();
-    if (pausedAt.current) {
-      holdsRef.current.push({ at: pausedAt.current.video, duration: (wall - pausedAt.current.wall) / 1000 });
-      pausedAt.current = null;
-    } else if (v) {
-      absorbDrift(v.currentTime, wall);
-    }
-    holdsRef.current = holdsRef.current.filter((h) => h.duration > 0.05);
-    v?.pause();
-    setPaused("no");
-    recorderRef.current?.stop();
+    if (pausedAt.current) closeHold(wall);
+    else if (videoRef.current) absorbDrift(videoRef.current.currentTime, wall);
+    videoRef.current?.pause();
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    else setPhase(take ? "recorded" : "ready"); // the recorder already ended on its own
   }
 
+  /** Close the dialog. A take in progress is discarded after confirming; an upload keeps going. */
+  function requestClose() {
+    if (recorderRef.current?.state === "recording") {
+      if (!window.confirm(t.discardTake)) return;
+      discardRef.current = true;
+      recorderRef.current.stop();
+    }
+    stopReview();
+    onClose();
+  }
+
+  // Keyboard: Space pauses/resumes the animation during a take (once per press), Escape closes.
+  const handlers = useRef({ togglePause, requestClose });
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space" && phase === "recording") {
+    handlers.current = { togglePause, requestClose };
+  });
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         e.preventDefault();
-        togglePause();
-      } else if (e.key === "Escape" && phase !== "recording" && phase !== "uploading") {
-        onClose();
+        handlers.current.requestClose();
+        return;
       }
+      if (e.code !== "Space") return;
+      if (startingRef.current) {
+        e.preventDefault(); // the microphone is still starting: apply this press once the take begins
+        if (!e.repeat) queuedToggle.current = !queuedToggle.current;
+        return;
+      }
+      if (recorderRef.current?.state !== "recording") return;
+      // Also stops a focused button from "clicking" on Space and toggling a second time.
+      e.preventDefault();
+      if (!e.repeat) handlers.current.togglePause();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [phase, togglePause, onClose]);
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && (startingRef.current || recorderRef.current?.state === "recording")) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
 
   /** Play the take back with the animation pausing exactly where it will in the final video. */
   function playTake() {
     const a = audioRef.current;
     const v = videoRef.current;
     if (!a || !v || !take) return;
+    if (reviewing) {
+      stopReview();
+      return;
+    }
     cancelAnimationFrame(reviewFrame.current);
     a.currentTime = 0;
     seek(start);
-    void a.play();
+    setReviewing(true);
+    void play(a);
     const sync = () => {
       const { v: target, held } = videoTimeAt(a.currentTime, start, take.holds);
-      const t = Math.min(target, v.duration || target);
+      const time = Math.min(target, v.duration || target);
       if (held || a.paused) {
         if (!v.paused) v.pause();
-        if (Math.abs(v.currentTime - t) > 0.05) v.currentTime = t;
+        if (Math.abs(v.currentTime - time) > 0.05) v.currentTime = time;
       } else {
-        if (Math.abs(v.currentTime - t) > 0.3) v.currentTime = t;
-        if (v.paused && t < (v.duration || Infinity)) void v.play();
+        if (Math.abs(v.currentTime - time) > 0.3) v.currentTime = time;
+        if (v.paused && time < (v.duration || Infinity)) void play(v);
       }
       if (!a.paused && !a.ended) reviewFrame.current = requestAnimationFrame(sync);
-      else v.pause();
+      else stopReview();
     };
     reviewFrame.current = requestAnimationFrame(sync);
   }
 
   async function useTake() {
     if (!take) return;
-    cancelAnimationFrame(reviewFrame.current);
-    audioRef.current?.pause();
+    stopReview();
     setPhase("uploading");
     setError(null);
     try {
@@ -243,8 +368,8 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
 
   const scene = sceneOf(shownIndex);
   const next = sceneOf(shownIndex + 1);
-  const pauseSeconds = pauseWall !== null ? Math.max(0, (now - pauseWall) / 1000) : 0;
-  const closable = phase !== "recording" && phase !== "uploading";
+  const pauseSeconds = pauseWall !== null ? Math.max(0, Math.floor((now - pauseWall) / 1000)) : 0;
+  const pausesInTake = take?.holds.length ?? 0;
 
   return (
     <div
@@ -252,19 +377,19 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
       aria-modal="true"
       aria-labelledby="recorder-heading"
       className="fixed inset-0 z-50 grid place-items-center overflow-y-auto overscroll-contain bg-stage/80 p-3 backdrop-blur-sm sm:p-6"
+      onMouseDown={(e) => e.target === e.currentTarget && requestClose()}
     >
       <div ref={panelRef} tabIndex={-1} className="stage outline-none max-h-full w-full max-w-5xl space-y-5 overflow-y-auto overscroll-contain rounded-2xl p-5 shadow-2xl ring-1 ring-white/10 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <h2 id="recorder-heading" className="font-serif text-2xl font-semibold">
-            Record your narration
-            {start > 0 && <span className="font-sans text-base font-normal text-stage-muted"> from {clock(start)}</span>}
+            {t.recordHeading}
+            {start > 0 && <span className="font-sans text-base font-normal text-stage-muted"> {t.fromTime(clock(start))}</span>}
           </h2>
           <button
             type="button"
-            onClick={onClose}
-            disabled={!closable}
-            className="grid h-9 w-9 place-items-center rounded-md text-stage-muted hover:bg-white/10 hover:text-white disabled:opacity-30"
-            aria-label="Close"
+            onClick={requestClose}
+            className="grid h-9 w-9 place-items-center rounded-md text-stage-muted hover:bg-white/10 hover:text-white"
+            aria-label={t.close}
           >
             <Icon name="close" />
           </button>
@@ -282,12 +407,14 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
               className="mx-auto aspect-video max-h-[44vh] w-full object-contain"
             />
           ) : (
-            <div className="grid aspect-video max-h-[44vh] w-full place-items-center text-sm text-stage-muted">Loading the video…</div>
+            <div className="grid aspect-video max-h-[44vh] w-full place-items-center px-6 text-center text-sm text-stage-muted">
+              {error ?? t.loadingVideo}
+            </div>
           )}
           <div
             aria-live="polite"
             className={
-              "absolute top-3 left-3 flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
+              "absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
               (phase !== "recording" ? "invisible" : paused !== "no" ? "bg-gold text-stage" : "bg-rec text-white")
             }
           >
@@ -295,31 +422,31 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
               (paused === "no" ? (
                 <>
                   <span className="pulse-soft h-2 w-2 rounded-full bg-white" aria-hidden="true" />
-                  Recording
+                  {t.recordingBadge}
                 </>
               ) : (
                 <span className="tabular-nums">
-                  {paused === "ended" ? "Animation finished" : "Animation paused"}, keep talking · {pauseSeconds.toFixed(0)}s
+                  {paused === "ended" ? t.endedKeepTalking(pauseSeconds) : t.pausedKeepTalking(pauseSeconds)}
                 </span>
               ))}
           </div>
           <div className="absolute right-3 bottom-3 rounded bg-black/65 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
-            {clock(videoTime)} / {clock(project.preview.duration)}
+            {clock(videoTime)} / {clock(preview.duration)}
           </div>
         </div>
 
         <div className="rounded-xl bg-stage-raised px-5 py-5 sm:px-7">
-          <p className="mb-2 text-sm text-stage-muted">Say it in your own words</p>
+          <p className="mb-2 text-sm text-stage-muted">{t.ownWords}</p>
           <p className="font-serif text-2xl leading-relaxed text-stage-ink sm:text-[1.75rem]">{scene?.narration}</p>
           {next && (
             <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-relaxed text-stage-muted">
-              <span className="font-semibold">Next:</span> {next.narration}
+              <span className="font-semibold">{t.next}</span> {next.narration}
             </p>
           )}
         </div>
 
-        {take && <audio ref={audioRef} src={take.url} className="hidden" />}
-        {error && (
+        {take && <audio ref={audioRef} src={take.url} className="hidden" onEnded={stopReview} />}
+        {error && src && (
           <p className="notice notice-error" role="alert">
             {error}
           </p>
@@ -330,7 +457,7 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
             <>
               <button type="button" onClick={stopRecording} className="btn btn-record">
                 <span className="h-3 w-3 rounded-sm bg-white" aria-hidden="true" />
-                Stop
+                {t.stop}
               </button>
               <button
                 type="button"
@@ -339,13 +466,13 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
                 className="btn border border-gold/60 text-gold hover:bg-gold hover:text-stage"
               >
                 <Icon name={paused === "no" ? "pause" : "play"} size={16} />
-                {paused === "no" ? "Pause animation" : "Resume animation"}
+                {paused === "no" ? t.pauseAnimation : t.resumeAnimation}
               </button>
             </>
           ) : (
             <button type="button" onClick={startRecording} disabled={phase === "loading" || phase === "uploading"} className="btn btn-record">
               <Icon name="mic" size={16} />
-              {take ? "Record again" : "Start recording"}
+              {take ? t.recordAgain : t.startRecording}
             </button>
           )}
           {take && phase !== "recording" && (
@@ -355,25 +482,21 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
               disabled={phase !== "recorded"}
               className="btn border border-white/25 text-stage-ink hover:border-white/60"
             >
-              <Icon name="play" size={14} />
-              Play back
+              <Icon name={reviewing ? "pause" : "play"} size={14} />
+              {reviewing ? t.stopPlayback : t.playBack}
             </button>
           )}
           <span className="min-w-48 flex-1 text-sm text-stage-muted">
-            {phase === "recording" ? (
-              <>
-                Press <kbd className="rounded border border-white/25 px-1.5 py-0.5 font-sans text-xs text-stage-ink">Space</kbd> to pause the animation while you explain; the pause stays in the video.
-              </>
-            ) : phase === "recorded" ? (
-              `${take?.holds.length ?? 0} pause${take?.holds.length === 1 ? "" : "s"} in this take.`
-            ) : (
-              "The animation plays while you talk. You can pause it at any moment to explain longer."
-            )}
+            {phase === "recording"
+              ? t.spaceHint("Space")
+              : phase === "recorded" || phase === "uploading"
+                ? t.pausesInTake(pausesInTake)
+                : t.recorderIdle}
           </span>
           {take && phase !== "recording" && (
             <button type="button" onClick={useTake} disabled={phase !== "recorded"} className="btn btn-primary">
               <Icon name="check" size={16} />
-              {phase === "uploading" ? "Saving…" : "Use this recording"}
+              {phase === "uploading" ? t.saving : t.useRecording}
             </button>
           )}
         </div>

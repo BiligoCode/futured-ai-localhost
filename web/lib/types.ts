@@ -63,6 +63,7 @@ export interface Project {
   preview: Cut;
   final: Cut;
   narrating: boolean;
+  captions: boolean;
   preview_outdated: boolean;
   final_outdated: boolean;
 }

@@ -1,15 +1,17 @@
 """Compose the project's scenes into the single videos the professor sees: the preview (animation only) and the
 final video (animation with narration and the professor's pauses), each with a timeline of where every scene sits."""
 import asyncio
+import json
 import logging
 import os
 from collections import defaultdict
 from pathlib import Path
 
+from app.captions import cues_from_json, cues_from_text, to_ass
 from app.media import concat, encode_segment, probe_duration
 from app.models import Cut, CutKind, Project, Scene, Segment
 from app.store import ProjectStore
-from app.voice import AUDIO_FILE
+from app.voice import AUDIO_FILE, CAPTIONS_FILE
 
 log = logging.getLogger(__name__)
 
@@ -36,19 +38,35 @@ def _wanted(project: Project, kind: CutKind) -> str | None:
     return project.final_signature() if project.voiced() else None
 
 
-def _segment(store: ProjectStore, project_id: str, scene: Scene, kind: CutKind) -> tuple[Path, float]:
+def _captions(scene_dir: Path, scene: Scene, out: Path) -> Path:
+    """Write the scene's caption file: timed from the AI voice when available, else spread over the audio."""
+    timed = scene_dir / CAPTIONS_FILE
+    if timed.is_file():
+        cues = cues_from_json(json.loads(timed.read_text(encoding="utf-8")))
+    else:
+        cues = cues_from_text(scene.narration, probe_duration(scene_dir / AUDIO_FILE))
+    out.write_text(to_ass(cues), encoding="utf-8")
+    return out
+
+
+def _segment(store: ProjectStore, project_id: str, scene: Scene, kind: CutKind,
+             captions: bool = False) -> tuple[Path, float]:
     """Encode (or reuse) one scene's part of a cut. Unchanged scenes are not re-encoded."""
     scene_dir = store.scene_dir(project_id, scene.id)
     voiced = kind == "final" and scene.audio_status == "done"
-    name = f"{kind}-{scene.code_version}-{scene.audio_version if voiced else 0}.mp4"
+    # Captions follow the script, so only the AI voice (which reads it word for word) gets them.
+    captioned = captions and voiced and scene.audio_source == "ai"
+    name = f"{kind}-{scene.code_version}-{scene.audio_version if voiced else 0}{'-cc' if captioned else ''}.mp4"
     out = scene_dir / SEGMENTS_DIR / name
     if not out.is_file():
         tmp = out.with_suffix(".tmp.mp4")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        ass = _captions(scene_dir, scene, out.with_suffix(".ass")) if captioned else None
         encode_segment(scene_dir / f"render_v{scene.code_version}.mp4", scene_dir / AUDIO_FILE if voiced else None,
-                       tmp, [(h.at, h.duration) for h in scene.holds] if voiced else [])
+                       tmp, [(h.at, h.duration) for h in scene.holds] if voiced else [], captions=ass)
         os.replace(tmp, out)
-        for old in out.parent.glob(f"{kind}-*.mp4"):
-            if old != out:
+        for old in out.parent.glob(f"{kind}-*"):
+            if old not in (out, out.with_suffix(".ass")):
                 old.unlink(missing_ok=True)
     return out, probe_duration(out)
 
@@ -56,7 +74,7 @@ def _segment(store: ProjectStore, project_id: str, scene: Scene, kind: CutKind) 
 def _compose(store: ProjectStore, project: Project, kind: CutKind) -> tuple[float, list[Segment]]:
     parts, segments, t = [], [], 0.0
     for scene in project.scenes:
-        part, duration = _segment(store, project.id, scene, kind)
+        part, duration = _segment(store, project.id, scene, kind, captions=project.captions)
         parts.append(part)
         segments.append(Segment(scene_id=scene.id, start=round(t, 3), end=round(t + duration, 3)))
         t += duration

@@ -30,7 +30,7 @@ def test_generate_code_prompt_and_extraction():
     assert code == VALID_CODE.strip()
     user = llm.calls[0][1][0]["content"]
     assert "Draw a parabola" in user and "10 seconds" in user
-    assert "M" * 8000 in user and "M" * 8001 not in user
+    assert "M" * 12000 in user and "M" * 12001 not in user
 
 
 def test_repair_sends_error_tail():
@@ -46,3 +46,14 @@ def test_revise_includes_instruction_and_code():
                 "make the arrow red", language="el")
     msg = llm.calls[0][1][0]["content"]
     assert "OLD_CODE" in msg and "make the arrow red" in msg
+
+
+def test_precheck_catches_greek_in_latex_and_unknown_names():
+    scene = "from manim import *\nclass GeneratedScene(Scene):\n    def construct(self):\n        {}\n"
+    greek = precheck(scene.format('self.add(Tex("νομίσματα: 1, 5"))'))
+    assert greek.startswith("Line 4: Tex(") and "Text(..., font" in greek
+    assert "BROWN" in precheck(scene.format("self.add(Circle(color=BROWN))")) and "hex" in precheck(
+        scene.format("self.add(Circle(color=BROWN))"))
+    assert precheck(scene.format("self.add(Checkmark())")).startswith("Line 4: NameError: name 'Checkmark'")
+    ok = scene.format('x = [Text(str(i)) for i in range(3)]; self.add(MathTex(r"\\alpha"), *x, Circle(color=TEAL))')
+    assert precheck(ok) is None

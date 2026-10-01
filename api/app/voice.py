@@ -1,15 +1,18 @@
 import asyncio
+import json
 import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.captions import cues_from_alignment, cues_to_json
 from app.media import cut_audio, normalize_audio, probe_duration
 from app.models import Hold, Project, Scene, Segment
 from app.store import ProjectStore
-from app.tts import TTSProvider
+from app.tts import TTSProvider, synthesize_timed
 
 AUDIO_FILE = "audio.wav"
+CAPTIONS_FILE = "captions.json"  # timed caption cues of the AI voice
 RECORDING_FILE = "voice.webm"
 TAKES_DIR = "takes"
 EPS = 0.02
@@ -43,9 +46,15 @@ async def generate_ai_voice(store: ProjectStore, tts: TTSProvider, project_id: s
     scene = project.scene(scene_id)
     await store.update_scene(project_id, scene_id, audio_status="generating")
     try:
-        audio = await asyncio.to_thread(tts.synthesize, scene.narration, project.language)
-        dst = store.scene_dir(project_id, scene_id) / AUDIO_FILE
-        await asyncio.to_thread(_write_normalized, audio, ".mp3", dst)
+        audio, alignment = await asyncio.to_thread(synthesize_timed, tts, scene.narration, project.language)
+        scene_dir = store.scene_dir(project_id, scene_id)
+        await asyncio.to_thread(_write_normalized, audio, ".mp3", scene_dir / AUDIO_FILE)
+        captions = scene_dir / CAPTIONS_FILE
+        if alignment:
+            captions.write_text(json.dumps(cues_to_json(cues_from_alignment(alignment)), ensure_ascii=False),
+                                encoding="utf-8")
+        else:
+            captions.unlink(missing_ok=True)  # captions are then timed from the text
     except Exception:
         # A failed attempt must not drop a voice that still exists and would otherwise be exported.
         restored = "done" if scene.audio_status == "done" else "failed"
@@ -72,6 +81,7 @@ async def attach_recording(store: ProjectStore, project_id: str, scene_id: str, 
     scene_dir = store.scene_dir(project_id, scene_id)
     await asyncio.to_thread(_write_normalized, data, ".webm", scene_dir / AUDIO_FILE)
     (scene_dir / RECORDING_FILE).write_bytes(data)
+    (scene_dir / CAPTIONS_FILE).unlink(missing_ok=True)
     project = await store.mutate(project_id, lambda p: _set_audio(p, scene_id, "professor"))
     return project.scene(scene_id)
 
@@ -79,7 +89,7 @@ async def attach_recording(store: ProjectStore, project_id: str, scene_id: str, 
 async def clear_voice(store: ProjectStore, project_id: str, scene_id: str) -> Scene:
     store.get(project_id).scene(scene_id)
     scene_dir = store.scene_dir(project_id, scene_id)
-    for name in (AUDIO_FILE, RECORDING_FILE):
+    for name in (AUDIO_FILE, RECORDING_FILE, CAPTIONS_FILE):
         (scene_dir / name).unlink(missing_ok=True)
 
     def apply(project: Project) -> None:
@@ -155,7 +165,8 @@ async def attach_take(store: ProjectStore, project_id: str, data: bytes, *, from
         tmp = scene_dir / "audio.tmp.wav"
         await asyncio.to_thread(cut_audio, wav, part.start, part.end, tmp)
         os.replace(tmp, scene_dir / AUDIO_FILE)
-        (scene_dir / RECORDING_FILE).unlink(missing_ok=True)
+        for name in (RECORDING_FILE, CAPTIONS_FILE):
+            (scene_dir / name).unlink(missing_ok=True)
 
     def apply(p: Project) -> None:
         for part in parts:

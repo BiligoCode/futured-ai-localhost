@@ -14,6 +14,7 @@ from manim.__main__ import main
 MAX_ISSUES = 8
 OVERLAP_RATIO = 0.2   # share of the smaller text's box covered by the other one
 FRAME_MARGIN = 0.05   # scene units a text may stick out of the frame before it counts as cut off
+CAPTION_STRIP = 1.3  # scene units at the bottom of the default 8-unit-high frame, kept free for captions
 MIN_FONT_SIZE = 14  # effective size on screen; the prompt asks for 30+ for labels
 
 _TEXT_TYPES = ("Text", "MarkupText", "Paragraph", "MathTex", "Tex", "SingleStringMathTex",
@@ -105,6 +106,7 @@ def check(scene: Scene) -> None:
                     f"y {y0:.2f}..{y1:.2f}, but the visible frame is x {fx0:.2f}..{fx1:.2f}, y {fy0:.2f}..{fy1:.2f}.")
         if _font_size(t) * zoom < MIN_FONT_SIZE:
             _report(("small", id(t)), f"{at}: {_label(t)} is too small to read.")
+    _check_caption_strip(scene, texts, at, (fx0, fy0, fx1, fy1))
     # Group texts drawn on top of each other into clusters, so twelve stacked labels are one issue, not 66.
     parent = list(range(len(texts)))
 
@@ -133,6 +135,25 @@ def check(scene: Scene) -> None:
         names = ", ".join(_label(m) for m in members[:6]) + (", …" if len(members) > 6 else "")
         _report(("cluster", frozenset(ids)),
                 f"{at}: {len(members)} texts are drawn on top of each other: {names}.")
+
+
+def _check_caption_strip(scene: Scene, texts: list[Mobject], at: str, frame) -> None:
+    """Captions are burned into the bottom strip of the video, so the animation must leave it empty."""
+    fx0, fy0, fx1, fy1 = frame
+    limit = fy0 + CAPTION_STRIP * (fy1 - fy0) / config.frame_height
+    # Texts first (the most precise culprit), then any other visible shape; full-frame backgrounds are fine.
+    for mob in [*texts, *scene.mobjects]:
+        if not _visible(mob):
+            continue
+        x0, y0, x1, y1 = _box(mob)
+        if x1 - x0 >= 0.9 * (fx1 - fx0) and y1 - y0 >= 0.9 * (fy1 - fy0):
+            continue
+        if y0 < limit - FRAME_MARGIN and y1 > fy0 and x1 > fx0 and x0 < fx1:
+            if ("caption", id(mob)) in _seen or any(("caption", id(t)) in _seen for t in _texts([mob])):
+                continue
+            _report(("caption", id(mob)),
+                    f"{at}: {_label(mob)} reaches into the caption strip at the bottom of the frame: its lowest point "
+                    f"is y {y0:.2f}, but nothing may go below y {limit:.2f}.")
 
 
 def _overlaps(a: Mobject, b: Mobject) -> bool:
