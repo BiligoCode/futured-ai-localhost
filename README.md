@@ -24,6 +24,12 @@ still rejected.
 finished parts are kept and **Continue** picks up the rest. **Cancel** on the setup form abandons a script that is
 still being drafted. **Delete** (on the video page, or the bin on its tile) removes a video and all its files.
 
+**Going back a step.** From the video, **Back to script** (or the Script step) reopens the script editor:
+running work stops, finished parts are kept, and on approval only parts whose picture or title changed are
+animated again (edited narration drops just that part's AI voice). From the script, **Back to setup** opens the
+setup form filled in with the concept, style, length, language and material text; drafting again replaces the
+old script and video.
+
 **Languages.** The interface is in Greek (default) or English, switched top right (stored in the `lara-lang`
 cookie; the API translates its messages from the `X-Lara-Lang` header). The *video's* language is only the one
 selected in the setup form: drafts written in another language or script are rejected and redone.

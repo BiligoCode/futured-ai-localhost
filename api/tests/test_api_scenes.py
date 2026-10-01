@@ -171,3 +171,44 @@ async def test_delete_project_while_rendering(tmp_path):
         assert (await c.get("/projects")).json() == []
         assert (await c.delete(f"/projects/{p['id']}")).status_code == 404
     assert not app.state.store.project_dir(p["id"]).joinpath("project.json").exists()
+
+
+async def test_back_to_script_rerenders_only_changed_parts(tmp_path):
+    renderer = FakeRenderer([OK])
+    app = make_app(tmp_path, renderer)
+    async with api_client(app) as c:
+        p = await new_project(c)
+        await c.post(f"/projects/{p['id']}/render")
+        await app.state.jobs.wait_all()
+        assert len(renderer.calls) == 4
+
+        r = await c.post(f"/projects/{p['id']}/reopen")
+        assert r.json()["stage"] == "storyboard"
+        scenes = r.json()["scenes"]
+        drafts = [{k: s[k] for k in ("id", "title", "visual", "narration")} for s in scenes]
+        drafts[0]["visual"] = "A different picture"
+        drafts[1]["narration"] = "Only the words change"
+        drafts[2], drafts[3] = drafts[3], drafts[2]
+        r = await c.put(f"/projects/{p['id']}/storyboard", json={"scenes": drafts})
+        by_id = {s["id"]: s for s in r.json()["scenes"]}
+        assert by_id[drafts[0]["id"]]["render_status"] == "pending"
+        assert by_id[drafts[1]["id"]]["render_status"] == "done"
+        assert [s["id"] for s in r.json()["scenes"]] == [d["id"] for d in drafts]
+
+        await c.post(f"/projects/{p['id']}/render")
+        await app.state.jobs.wait_all()
+        scenes = (await c.get(f"/projects/{p['id']}")).json()["scenes"]
+    assert len(renderer.calls) == 5
+    assert all(s["render_status"] == "done" for s in scenes)
+
+
+async def test_back_to_script_stops_running_work(tmp_path):
+    app = make_app(tmp_path, GatedRenderer())
+    async with api_client(app) as c:
+        p = await new_project(c)
+        await c.post(f"/projects/{p['id']}/render")
+        await asyncio.sleep(0.05)
+        r = await c.post(f"/projects/{p['id']}/reopen")
+        assert r.json()["stage"] == "storyboard"
+        assert all(s["render_status"] == "failed" for s in r.json()["scenes"])
+        assert not app.state.jobs.keys(f"{p['id']}:")
