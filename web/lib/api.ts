@@ -1,5 +1,5 @@
 import { LANG_COOKIE, MESSAGES, parseLang } from "./messages";
-import type { ChatResult, CutKind, Deck, DeckSummary, DeckUpdate, EmbedMode, ExportFormat, Hold, Project, ReviseResult, SceneDraft } from "./types";
+import type { ChatResult, Cut, CutKind, Deck, DeckSummary, DeckUpdate, EmbedMode, ExportFormat, Hold, Project, ReviseResult, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -82,8 +82,17 @@ export function uploadTake(id: string, blob: Blob, fromScene: string, holds: Hol
   return request<Project>(`/projects/${id}/narration/recording`, { method: "POST", body: form });
 }
 
-export const cutUrl = (id: string, kind: CutKind, version: number) =>
-  `${API_URL}/projects/${id}/${kind === "final" ? "export" : "preview"}.mp4?v=${version}`;
+/** A short hash of what a cut contains (its signature), so a rebuilt video never reuses a cached URL. */
+function contentTag(signature: string): string {
+  let h = 5381;
+  for (let i = 0; i < signature.length; i++) h = ((h << 5) + h + signature.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+// The version alone is not enough: removing all narration resets the final video to version 0, so the next
+// narrated video is version 1 again and the browser would play the old one from its cache.
+export const cutUrl = (id: string, kind: CutKind, cut: Pick<Cut, "version" | "signature">) =>
+  `${API_URL}/projects/${id}/${kind === "final" ? "export" : "preview"}.mp4?v=${cut.version}.${contentTag(cut.signature)}`;
 
 // --- Slides ------------------------------------------------------------------------------------------------------
 

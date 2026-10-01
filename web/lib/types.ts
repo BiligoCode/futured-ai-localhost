@@ -115,6 +115,7 @@ export interface AnimationRef {
   status: AnimationStatus;
   cut: CutKind | null;
   version: number;
+  signature: string;
   duration: number;
   embedded: boolean;
 }

@@ -215,6 +215,7 @@ class AnimationRef(BaseModel):
     status: AnimationStatus
     cut: CutKind | None  # "final" when narrated, else "preview", None before the first video
     version: int
+    signature: str = ""  # of the chosen cut, so the editor never plays a stale cached video
     duration: float
     embedded: bool
 

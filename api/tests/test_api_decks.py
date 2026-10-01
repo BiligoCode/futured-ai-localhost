@@ -121,9 +121,9 @@ async def test_view_marks_missing_and_linked_animations(tmp_path):
         assert r.status_code == 200
         refs = {a["project_id"]: a for a in r.json()["animations"]}
         assert refs["ghost"] == {"project_id": "ghost", "title": "", "status": "missing", "cut": None,
-                                 "version": 0, "duration": 0, "embedded": True}
+                                 "version": 0, "signature": "", "duration": 0, "embedded": True}
         assert refs[ready.id] == {"project_id": ready.id, "title": "Φυσαλίδα", "status": "ready", "cut": "preview",
-                                  "version": 2, "duration": 20.0, "embedded": False}
+                                  "version": 2, "signature": "", "duration": 20.0, "embedded": False}
         assert refs[draft.id]["status"] == "draft" and refs[draft.id]["cut"] is None
 
 

@@ -31,7 +31,7 @@ function Poster({ p }: { p: Project }) {
   const at = Math.min(p[cut].duration * 0.3, 8) || 4;
   return (
     <video
-      src={`${cutUrl(p.id, cut, p[cut].version)}#t=${at.toFixed(1)}`}
+      src={`${cutUrl(p.id, cut, p[cut])}#t=${at.toFixed(1)}`}
       preload="metadata"
       muted
       playsInline

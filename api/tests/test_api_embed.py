@@ -39,7 +39,7 @@ async def test_embed_append_new_after_new_end(setup):
         assert poster.calls[0][0].name == "preview.mp4" and poster.calls[0][2] == 6.0
         assert poster.calls[0][1] == app.state.decks.deck_dir(deck.id) / "posters" / f"{ready.id}.jpg"
         ref = next(a for a in v["animations"] if a["project_id"] == ready.id)
-        assert ref == {"project_id": ready.id, "title": "Φυσαλίδα", "status": "ready", "cut": "preview", "version": 1,
+        assert ref == {"project_id": ready.id, "title": "Φυσαλίδα", "status": "ready", "cut": "preview", "version": 1, "signature": "",
                        "duration": 20.0, "embedded": True}
 
         r = await c.post(f"/decks/{deck.id}/embed", json={"project_id": ready.id, "slide_id": first, "mode": "new_after"})

@@ -45,7 +45,7 @@ export function VideoBlock({ animation, deckId, onRemove }: {
           preload="metadata"
           playsInline
           poster={posterUrl(deckId, animation.project_id)}
-          src={cutUrl(animation.project_id, animation.cut, animation.version)}
+          src={cutUrl(animation.project_id, animation.cut, animation)}
         />
         {remove}
       </div>

@@ -11,7 +11,8 @@ def _ref(project: Project, embedded: bool) -> AnimationRef:
         status, cut = "ready", "final" if project.final.version > 0 else "preview"
     chosen = project.final if cut == "final" else project.preview
     return AnimationRef(project_id=project.id, title=project.title, status=status, cut=cut,
-                        version=chosen.version if cut else 0, duration=chosen.duration if cut else 0.0,
+                        version=chosen.version if cut else 0, signature=chosen.signature if cut else "",
+                        duration=chosen.duration if cut else 0.0,
                         embedded=embedded)
 
 

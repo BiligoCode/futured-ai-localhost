@@ -81,7 +81,7 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
   useEffect(() => {
     let url: string | null = null;
     let cancelled = false;
-    fetch(cutUrl(project.id, "preview", preview.version))
+    fetch(cutUrl(project.id, "preview", preview))
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("load"))))
       .then((blob) => {
         if (cancelled) return;
@@ -379,126 +379,130 @@ export function NarrationRecorder({ project, fromScene, onDone, onClose }: {
       className="fixed inset-0 z-50 grid place-items-center overflow-y-auto overscroll-contain bg-stage/80 p-3 backdrop-blur-sm sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && requestClose()}
     >
-      <div ref={panelRef} tabIndex={-1} className="stage outline-none max-h-full w-full max-w-5xl space-y-5 overflow-y-auto overscroll-contain rounded-2xl p-5 shadow-2xl ring-1 ring-white/10 sm:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <h2 id="recorder-heading" className="font-serif text-2xl font-semibold">
-            {t.recordHeading}
-            {start > 0 && <span className="font-sans text-base font-normal text-stage-muted"> {t.fromTime(clock(start))}</span>}
-          </h2>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="grid h-9 w-9 place-items-center rounded-md text-stage-muted hover:bg-white/10 hover:text-white"
-            aria-label={t.close}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-
-        <div className="stage-grid relative overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-          {src ? (
-            <video
-              ref={videoRef}
-              src={src}
-              muted
-              playsInline
-              onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
-              onEnded={onEnded}
-              className="mx-auto aspect-video max-h-[44vh] w-full object-contain"
-            />
-          ) : (
-            <div className="grid aspect-video max-h-[44vh] w-full place-items-center px-6 text-center text-sm text-stage-muted">
-              {error ?? t.loadingVideo}
-            </div>
-          )}
-          <div
-            aria-live="polite"
-            className={
-              "absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
-              (phase !== "recording" ? "invisible" : paused !== "no" ? "bg-gold text-stage" : "bg-rec text-white")
-            }
-          >
-            {phase === "recording" &&
-              (paused === "no" ? (
-                <>
-                  <span className="pulse-soft h-2 w-2 rounded-full bg-white" aria-hidden="true" />
-                  {t.recordingBadge}
-                </>
-              ) : (
-                <span className="tabular-nums">
-                  {paused === "ended" ? t.endedKeepTalking(pauseSeconds) : t.pausedKeepTalking(pauseSeconds)}
-                </span>
-              ))}
+      <div ref={panelRef} tabIndex={-1} className="stage outline-none max-h-full w-full max-w-5xl overflow-y-auto overscroll-contain rounded-2xl shadow-2xl ring-1 ring-white/10">
+        {/* Pinned: the controls are the first thing seen and stay reachable however far the script scrolls. */}
+        <div className="sticky top-0 z-10 space-y-3 border-b border-white/10 bg-stage/95 px-5 py-4 backdrop-blur sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 id="recorder-heading" className="font-serif text-xl font-semibold sm:text-2xl">
+              {t.recordHeading}
+              {start > 0 && <span className="font-sans text-base font-normal text-stage-muted"> {t.fromTime(clock(start))}</span>}
+            </h2>
+            <button
+              type="button"
+              onClick={requestClose}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-stage-muted hover:bg-white/10 hover:text-white"
+              aria-label={t.close}
+            >
+              <Icon name="close" />
+            </button>
           </div>
-          <div className="absolute right-3 bottom-3 rounded bg-black/65 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
-            {clock(videoTime)} / {clock(preview.duration)}
+          <div className="flex flex-wrap items-center gap-3">
+            {phase === "recording" ? (
+              <>
+                <button type="button" onClick={stopRecording} className="btn btn-record">
+                  <span className="h-3 w-3 rounded-sm bg-white" aria-hidden="true" />
+                  {t.stop}
+                </button>
+                <button
+                  type="button"
+                  onClick={togglePause}
+                  disabled={paused === "ended"}
+                  className="btn border border-gold/60 text-gold hover:bg-gold hover:text-stage"
+                >
+                  <Icon name={paused === "no" ? "pause" : "play"} size={16} />
+                  {paused === "no" ? t.pauseAnimation : t.resumeAnimation}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={startRecording} disabled={phase === "loading" || phase === "uploading"} className="btn btn-record">
+                <Icon name="mic" size={16} />
+                {take ? t.recordAgain : t.startRecording}
+              </button>
+            )}
+            {take && phase !== "recording" && (
+              <button
+                type="button"
+                onClick={playTake}
+                disabled={phase !== "recorded"}
+                className="btn border border-white/25 text-stage-ink hover:border-white/60"
+              >
+                <Icon name={reviewing ? "pause" : "play"} size={14} />
+                {reviewing ? t.stopPlayback : t.playBack}
+              </button>
+            )}
+            <span className="min-w-48 flex-1 text-sm text-stage-muted">
+              {phase === "recording"
+                ? t.spaceHint("Space")
+                : phase === "recorded" || phase === "uploading"
+                  ? t.pausesInTake(pausesInTake)
+                  : t.recorderIdle}
+            </span>
+            {take && phase !== "recording" && (
+              <button type="button" onClick={useTake} disabled={phase !== "recorded"} className="btn btn-primary">
+                <Icon name="check" size={16} />
+                {phase === "uploading" ? t.saving : t.useRecording}
+              </button>
+            )}
           </div>
-        </div>
-
-        <div className="rounded-xl bg-stage-raised px-5 py-5 sm:px-7">
-          <p className="mb-2 text-sm text-stage-muted">{t.ownWords}</p>
-          <p className="font-serif text-2xl leading-relaxed text-stage-ink sm:text-[1.75rem]">{scene?.narration}</p>
-          {next && (
-            <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-relaxed text-stage-muted">
-              <span className="font-semibold">{t.next}</span> {next.narration}
+          {error && src && (
+            <p className="notice notice-error" role="alert">
+              {error}
             </p>
           )}
         </div>
 
-        {take && <audio ref={audioRef} src={take.url} className="hidden" onEnded={stopReview} />}
-        {error && src && (
-          <p className="notice notice-error" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3">
-          {phase === "recording" ? (
-            <>
-              <button type="button" onClick={stopRecording} className="btn btn-record">
-                <span className="h-3 w-3 rounded-sm bg-white" aria-hidden="true" />
-                {t.stop}
-              </button>
-              <button
-                type="button"
-                onClick={togglePause}
-                disabled={paused === "ended"}
-                className="btn border border-gold/60 text-gold hover:bg-gold hover:text-stage"
-              >
-                <Icon name={paused === "no" ? "pause" : "play"} size={16} />
-                {paused === "no" ? t.pauseAnimation : t.resumeAnimation}
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={startRecording} disabled={phase === "loading" || phase === "uploading"} className="btn btn-record">
-              <Icon name="mic" size={16} />
-              {take ? t.recordAgain : t.startRecording}
-            </button>
-          )}
-          {take && phase !== "recording" && (
-            <button
-              type="button"
-              onClick={playTake}
-              disabled={phase !== "recorded"}
-              className="btn border border-white/25 text-stage-ink hover:border-white/60"
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="stage-grid relative overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+            {src ? (
+              <video
+                ref={videoRef}
+                src={src}
+                muted
+                playsInline
+                onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
+                onEnded={onEnded}
+                className="mx-auto aspect-video max-h-[40vh] w-full object-contain"
+              />
+            ) : (
+              <div className="grid aspect-video max-h-[40vh] w-full place-items-center px-6 text-center text-sm text-stage-muted">
+                {error ?? t.loadingVideo}
+              </div>
+            )}
+            <div
+              aria-live="polite"
+              className={
+                "absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
+                (phase !== "recording" ? "invisible" : paused !== "no" ? "bg-gold text-stage" : "bg-rec text-white")
+              }
             >
-              <Icon name={reviewing ? "pause" : "play"} size={14} />
-              {reviewing ? t.stopPlayback : t.playBack}
-            </button>
-          )}
-          <span className="min-w-48 flex-1 text-sm text-stage-muted">
-            {phase === "recording"
-              ? t.spaceHint("Space")
-              : phase === "recorded" || phase === "uploading"
-                ? t.pausesInTake(pausesInTake)
-                : t.recorderIdle}
-          </span>
-          {take && phase !== "recording" && (
-            <button type="button" onClick={useTake} disabled={phase !== "recorded"} className="btn btn-primary">
-              <Icon name="check" size={16} />
-              {phase === "uploading" ? t.saving : t.useRecording}
-            </button>
-          )}
+              {phase === "recording" &&
+                (paused === "no" ? (
+                  <>
+                    <span className="pulse-soft h-2 w-2 rounded-full bg-white" aria-hidden="true" />
+                    {t.recordingBadge}
+                  </>
+                ) : (
+                  <span className="tabular-nums">
+                    {paused === "ended" ? t.endedKeepTalking(pauseSeconds) : t.pausedKeepTalking(pauseSeconds)}
+                  </span>
+                ))}
+            </div>
+            <div className="absolute right-3 bottom-3 rounded bg-black/65 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
+              {clock(videoTime)} / {clock(preview.duration)}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-stage-raised px-5 py-4 sm:px-7">
+            <p className="mb-2 text-sm text-stage-muted">{t.ownWords}</p>
+            <p className="font-serif text-xl leading-relaxed text-stage-ink sm:text-2xl">{scene?.narration}</p>
+            {next && (
+              <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-relaxed text-stage-muted">
+                <span className="font-semibold">{t.next}</span> {next.narration}
+              </p>
+            )}
+          </div>
+
+          {take && <audio ref={audioRef} src={take.url} className="hidden" onEnded={stopReview} />}
         </div>
       </div>
     </div>
