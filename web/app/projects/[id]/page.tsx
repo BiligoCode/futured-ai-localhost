@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ScenesBoard } from "@/components/ScenesBoard";
 import { Stepper } from "@/components/Stepper";
 import { StoryboardEditor } from "@/components/StoryboardEditor";
+import { VoiceStudio } from "@/components/VoiceStudio";
 import { useProject } from "@/lib/useProject";
 
 type Tab = "scenes" | "voice";
@@ -51,7 +52,7 @@ export default function ProjectPage() {
           {tab === "scenes" ? (
             <ScenesBoard project={project} onChange={setProject} onContinue={() => setTab("voice")} />
           ) : (
-            <p className="text-slate-500">Voice studio coming next.</p>
+            <VoiceStudio project={project} onChange={setProject} />
           )}
         </>
       )}

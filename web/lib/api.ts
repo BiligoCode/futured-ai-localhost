@@ -58,3 +58,20 @@ export const reviseScene = (id: string, sid: string, instruction: string) =>
 export const getSceneCode = (id: string, sid: string) => request<string>(`/projects/${id}/scenes/${sid}/code`);
 export const videoUrl = (id: string, sid: string, version: number) =>
   `${API_URL}/projects/${id}/scenes/${sid}/video?v=${version}`;
+
+export const updateNarration = (id: string, sid: string, narration: string) =>
+  request<Project>(`/projects/${id}/scenes/${sid}`, json("PATCH", { narration }));
+export const generateAiVoice = (id: string, sid: string) =>
+  request<Project>(`/projects/${id}/scenes/${sid}/voice/ai`, { method: "POST" });
+export const generateAllAiVoice = (id: string) => request<Project>(`/projects/${id}/voice/ai-all`, { method: "POST" });
+export function uploadRecording(id: string, sid: string, blob: Blob) {
+  const form = new FormData();
+  form.append("file", blob, "take.webm");
+  return request<Project>(`/projects/${id}/scenes/${sid}/voice/recording`, { method: "POST", body: form });
+}
+export const clearVoice = (id: string, sid: string) =>
+  request<Project>(`/projects/${id}/scenes/${sid}/voice`, { method: "DELETE" });
+export const exportProject = (id: string) => request<{ url: string }>(`/projects/${id}/export`, { method: "POST" });
+export const audioUrl = (id: string, sid: string, bust: number) =>
+  `${API_URL}/projects/${id}/scenes/${sid}/audio?v=${bust}`;
+export const exportUrl = (id: string, bust: number) => `${API_URL}/projects/${id}/export.mp4?v=${bust}`;
