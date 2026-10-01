@@ -33,10 +33,14 @@ const after = await (await fetch(`${api}/decks/${deckId}`)).json();
 console.log("title red:", /color: #c93838/.test(after.slides[0].html), "| slides", before.slides.length, "→", after.slides.length, "| local edit kept:", after.slides[1].html.includes("ΤΟΠΙΚΟ"));
 console.log("assistant reply:", after.chat.at(-1).content.slice(0, 120));
 
-// Undo the AI edit → slides restored, local edit still there.
+// Type more in slide 2 *after* the AI edit, then undo the AI edit → only the AI's work is reverted.
+await page.locator(".slide-editor .ProseMirror").nth(1).click();
+await page.keyboard.press("End");
+await page.keyboard.type(" ΜΕΤΑ");
 await page.getByRole("button", { name: /Αναίρεση αυτής της αλλαγής|Undo this change/ }).click();
 await page.waitForTimeout(1500);
 const undone = await (await fetch(`${api}/decks/${deckId}`)).json();
-console.log("after undo: slides", undone.slides.length, "| title red:", /color: #c93838/.test(undone.slides[0].html), "| local edit kept:", undone.slides[1].html.includes("ΤΟΠΙΚΟ"));
+console.log("after undo: slides", undone.slides.length, "| title red:", /color: #c93838/.test(undone.slides[0].html), "| local edits kept:", undone.slides[1].html.includes("ΤΟΠΙΚΟ") && undone.slides[1].html.includes("ΜΕΤΑ"));
+console.log("active slide still valid (chip):", await page.locator("form span", { hasText: /Διαφάνεια \d|Slide \d/ }).first().isVisible());
 console.log("page errors:", errors.length ? errors : "none");
 await browser.close();

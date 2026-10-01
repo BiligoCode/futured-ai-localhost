@@ -38,25 +38,27 @@ export function slideExtensions(placeholder: string) {
 }
 
 /** One slide, editable. Reports its HTML on every change; takes external HTML (AI edits, undo) when it differs. */
-export function SlideEditor({ slide, index, total, deckId, deckTitle, active, animation, onChange, onFocus, onSelection, onRemoveVideo, editorRef }: {
+export function SlideEditor({ slide, index, total, deckId, deckTitle, active, autoFocus, animation, onChange, onFocus, onBlur, onSelection, onRemoveVideo, editorRef }: {
   slide: Slide;
   index: number;
   total: number;
   deckId: string;
   deckTitle: string;
   active: boolean;
+  autoFocus?: boolean;
   animation: AnimationRef | undefined;
   onChange: (html: string) => void;
   onFocus: (slideId: string) => void;
+  onBlur: () => void;
   onSelection: (text: string | null) => void;
   onRemoveVideo: () => void;
   editorRef: (slideId: string, editor: Editor | null) => void;
 }) {
   const { t } = useI18n();
-  const handlers = useRef({ onChange, onFocus, onSelection });
+  const handlers = useRef({ onChange, onFocus, onBlur, onSelection });
   useEffect(() => {
-    handlers.current = { onChange, onFocus, onSelection };
-  }, [onChange, onFocus, onSelection]);
+    handlers.current = { onChange, onFocus, onBlur, onSelection };
+  }, [onChange, onFocus, onBlur, onSelection]);
   const textRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
 
@@ -65,9 +67,11 @@ export function SlideEditor({ slide, index, total, deckId, deckTitle, active, an
     shouldRerenderOnTransaction: false,
     extensions: slideExtensions(t.slidePlaceholder),
     content: slide.html,
+    autofocus: autoFocus ? "end" : false,
     editorProps: { attributes: { "aria-label": t.slideN(index + 1) } },
     onUpdate: ({ editor }) => handlers.current.onChange(editor.getHTML()),
     onFocus: () => handlers.current.onFocus(slide.id),
+    onBlur: () => handlers.current.onBlur(),
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
       const text = editor.state.doc.textBetween(from, to, " ").trim().slice(0, SELECTION_CHARS);
@@ -83,6 +87,10 @@ export function SlideEditor({ slide, index, total, deckId, deckTitle, active, an
     editorRef(slide.id, editor);
     return () => editorRef(slide.id, null);
   }, [editor, slide.id, editorRef]);
+
+  useEffect(() => {
+    editor?.setOptions({ editorProps: { attributes: { "aria-label": t.slideN(index + 1) } } }); // follows reordering
+  }, [editor, index, t]);
 
   const check = useCallback(() => {
     const el = textRef.current;

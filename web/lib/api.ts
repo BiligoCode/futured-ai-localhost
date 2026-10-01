@@ -91,6 +91,10 @@ export const listDecks = () => request<DeckSummary[]>("/decks");
 export const getDeck = (id: string) => request<Deck>(`/decks/${id}`);
 export const createDeck = (form: FormData) => request<Deck>("/decks", { method: "POST", body: form });
 export const saveDeck = (id: string, body: DeckUpdate) => request<Deck>(`/decks/${id}`, json("PUT", body));
+/** Fire-and-forget save for when the page is being left; `keepalive` lets the browser finish it after unload. */
+export const saveDeckOnLeave = (id: string, body: DeckUpdate) => {
+  void fetch(`${API_URL}/decks/${id}`, { ...json("PUT", body), keepalive: true, headers: { "Content-Type": "application/json", "X-Lara-Lang": uiLang() } }).catch(() => undefined);
+};
 export const deleteDeck = (id: string) => request<void>(`/decks/${id}`, { method: "DELETE" });
 export const chatDeck = (
   id: string,

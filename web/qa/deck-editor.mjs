@@ -31,14 +31,18 @@ await page.waitForTimeout(1500);
 const bolded = await (await fetch(`${api}/decks/${deckId}`)).json();
 console.log("bold saved:", /<strong> ?ΔΟΚΙΜΗ-1<\/strong>/.test(bolded.slides[0].html));
 
-// 3. Add a slide from the strip, then delete it and undo.
+// 3. Add a slide from the strip (the cursor must land in it), then delete it and undo.
 const count = () => page.locator(".slide-editor").count();
 const n0 = await count();
 await page.getByRole("button", { name: /Νέα διαφάνεια|Add slide/ }).first().click();
 await page.waitForFunction((n) => document.querySelectorAll(".slide-editor").length === n + 1, n0);
+await page.waitForTimeout(300);
+const focusedIndex = await page.evaluate(() => Array.from(document.querySelectorAll(".slide-editor .ProseMirror")).indexOf(document.activeElement));
+console.log("new slide focused:", focusedIndex === 1);
+await page.keyboard.type("ΝΕΑ");
 await page.waitForTimeout(1200);
 const added = await (await fetch(`${api}/decks/${deckId}`)).json();
-console.log("slide added & saved:", added.slides.length === n0 + 1);
+console.log("slide added & saved:", added.slides.length === n0 + 1 && added.slides[1].html.includes("ΝΕΑ"));
 const thumb = page.locator("nav li").nth(1);
 await thumb.hover();
 await thumb.getByRole("button", { name: /Διαγραφή διαφάνειας|Delete slide/ }).click();
@@ -55,7 +59,18 @@ await page.keyboard.press("Enter");
 await page.waitForTimeout(1300);
 console.log("title saved:", (await (await fetch(`${api}/decks/${deckId}`)).json()).title === "Νέος τίτλος");
 
-// 5. Reload: everything persists, no console errors.
+// 5. Leaving through an in-app link right after typing must not lose the text.
+await page.locator(".slide-editor .ProseMirror").first().click();
+await page.keyboard.press("End");
+await page.keyboard.type(" ΦΕΥΓΩ");
+await page.waitForTimeout(150);
+await page.locator("header a[href='/']").first().click();
+await page.waitForURL(/\/$/);
+await page.waitForTimeout(800);
+console.log("text saved on leave:", (await (await fetch(`${api}/decks/${deckId}`)).json()).slides[0].html.includes("ΦΕΥΓΩ"));
+await page.goto(`${web}/decks/${deckId}`);
+
+// 6. Reload: everything persists, no console errors.
 await page.reload();
 await page.waitForSelector(".slide-editor .ProseMirror");
 console.log("after reload slides:", await count(), "title shown:", await page.getByText("Νέος τίτλος").first().isVisible());

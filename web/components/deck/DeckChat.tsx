@@ -9,7 +9,7 @@ import type { ChatMessage, EditLog } from "@/lib/types";
 export type ActiveSlide = { id: string; label: string };
 
 /** The assistant beside the slides: answers, edits, or both. The workspace owns the request and the merge. */
-export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSend, onUndo, onClearSelection, onClearSlide, onJump, slideLabel }: {
+export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSend, onUndo, onClearSelection, onJump, slideLabel }: {
   messages: ChatMessage[];
   activeSlide: ActiveSlide | null;
   selection: string | null;
@@ -18,7 +18,6 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
   onSend: (message: string, useSlide: boolean, useSelection: boolean, signal: AbortSignal) => Promise<void>;
   onUndo: () => void;
   onClearSelection: () => void;
-  onClearSlide: () => void;
   onJump: (slideId: string) => void;
   slideLabel: (slideId: string) => string;
 }) {
@@ -146,7 +145,7 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pr-0.5 pl-2.5 text-xs font-semibold text-accent">
                 <Icon name="slides" size={13} />
                 {activeSlide.label}
-                <button type="button" onClick={() => { setDismissedSlide(activeSlide.id); onClearSlide(); }} className="grid h-5 w-5 place-items-center rounded-full hover:bg-accent hover:text-white" aria-label={t.dontUseSlide}>
+                <button type="button" onClick={() => setDismissedSlide(activeSlide.id)} className="grid h-5 w-5 place-items-center rounded-full hover:bg-accent hover:text-white" aria-label={t.dontUseSlide}>
                   <Icon name="close" size={11} />
                 </button>
               </span>

@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { ApiError, chatDeck, deleteDeck, getDeck, saveDeck } from "@/lib/api";
-import { mergeChatResult } from "@/lib/deckMerge";
+import { ApiError, chatDeck, deleteDeck, getDeck, saveDeck, saveDeckOnLeave } from "@/lib/api";
+import { mergeChatResult, undoChatEdits } from "@/lib/deckMerge";
 import { useI18n } from "@/lib/i18n";
 import { slideTitle } from "@/lib/slideHtml";
-import type { AnimationRef, ChatMessage, Deck, Slide } from "@/lib/types";
+import type { AnimationRef, ChatMessage, Deck, EditLog, Slide } from "@/lib/types";
 import { useDeckSplit } from "@/lib/useDeckSplit";
 
 import { AnimationsMenu } from "./AnimationsMenu";
@@ -44,57 +44,98 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   const { t } = useI18n();
   const router = useRouter();
   const [doc, setDoc] = useState<DeckDoc>(() => fromDeck(deck));
-  const [activeId, setActiveId] = useState<string | null>(deck.slides[0]?.id ?? null);
+  const [wantedActive, setActiveId] = useState<string | null>(deck.slides[0]?.id ?? null);
   const [selection, setSelection] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [notice, setNotice] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [removed, setRemoved] = useState<{ slide: Slide; index: number } | null>(null);
   const [editors, setEditors] = useState<Map<string, Editor>>(() => new Map());
+  const editorsRef = useRef(editors);
   const [chatBusy, setChatBusy] = useState(false);
-  const [undoSnapshot, setUndoSnapshot] = useState<Slide[] | null>(null);
+  const [undo, setUndo] = useState<{ snapshot: Slide[]; edits: EditLog[] } | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null); // a freshly added slide takes the cursor
   const [ratio, setRatio] = useDeckSplit();
   const panes = useRef<HTMLDivElement>(null);
 
-  // The latest document and change counter, for saves that start later than the render they were scheduled in.
+  // `latest` is updated synchronously by `update` (not in an effect), so a save that starts inside an async
+  // chain always reads the current document. `changes` counts local edits; a save that finishes with new
+  // changes behind it saves again at once.
   const latest = useRef(doc);
+  const unsaved = useRef(false);
   const changes = useRef(0);
+  const dirtySlides = useRef(new Set<string>()); // slides typed in since the last successful save
   const saving = useRef<Promise<void> | null>(null);
   useEffect(() => {
-    latest.current = doc;
-  }, [doc]);
+    unsaved.current = saveState !== "saved";
+  }, [saveState]);
+  useEffect(() => {
+    editorsRef.current = editors;
+  }, [editors]);
+
+  const update = useCallback((fn: (d: DeckDoc) => DeckDoc) => {
+    latest.current = fn(latest.current);
+    setDoc(latest.current);
+  }, []);
 
   const change = useCallback((fn: (d: DeckDoc) => DeckDoc) => {
     changes.current += 1;
-    setDoc(fn);
+    update(fn);
     setSaveState("dirty");
-  }, []);
+  }, [update]);
 
-  const saveNow = useCallback(async () => {
-    if (saving.current) return saving.current;
+  /** One PUT. Returns whether saving may continue (false after an error, which waits for Retry). */
+  const attemptSave = useCallback(async (): Promise<boolean> => {
     const seq = changes.current;
     const d = latest.current;
     setSaveState("saving");
+    try {
+      const res = await saveDeck(deck.id, {
+        title: d.title,
+        slides: d.slides.map((s) => ({ id: s.id, html: s.html, video: s.video })),
+        version: d.version,
+      });
+      // A chat reply may have advanced the version meanwhile: never go backwards.
+      update((prev) => ({ ...prev, version: Math.max(prev.version, res.version), animations: res.animations }));
+      if (changes.current === seq) dirtySlides.current.clear(); // typed during the save → stays dirty until a quiet save
+      setSaveState(changes.current === seq ? "saved" : "dirty");
+      setNotice(null);
+      return true;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // Another tab (or a chat reply) saved first: take the server's deck but keep what was typed here since
+        // the last save, then save again.
+        try {
+          const fresh = await getDeck(deck.id);
+          const typed = new Map(latest.current.slides.filter((s) => dirtySlides.current.has(s.id)).map((s) => [s.id, s.html]));
+          changes.current += 1;
+          update(() => ({
+            ...fromDeck(fresh),
+            slides: fresh.slides.map((s) => (typed.has(s.id) ? { ...s, html: typed.get(s.id)! } : s)),
+          }));
+          setSaveState(typed.size ? "dirty" : "saved");
+          setNotice(t.reloadedNotice);
+          return typed.size > 0;
+        } catch (err) {
+          setSaveState("error");
+          setNotice(err instanceof Error ? err.message : String(err));
+          return false;
+        }
+      }
+      setSaveState("error");
+      setNotice(e instanceof Error ? e.message : String(e));
+      return false;
+    }
+  }, [deck.id, t.reloadedNotice, update]);
+
+  /** Save now, and keep saving while edits keep arriving behind the save in flight. */
+  const saveNow = useCallback((): Promise<void> => {
+    if (saving.current) return saving.current;
     const task = (async () => {
       try {
-        const res = await saveDeck(deck.id, {
-          title: d.title,
-          slides: d.slides.map((s) => ({ id: s.id, html: s.html, video: s.video })),
-          version: d.version,
-        });
-        setDoc((prev) => ({ ...prev, version: res.version, animations: res.animations }));
-        setSaveState(changes.current === seq ? "saved" : "dirty");
-        setNotice(null);
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409) {
-          const fresh = await getDeck(deck.id);
-          changes.current += 1;
-          setDoc(fromDeck(fresh));
-          setSaveState("saved");
-          setNotice(t.reloadedNotice);
-        } else {
-          setSaveState("error");
-          setNotice(e instanceof Error ? e.message : String(e));
+        for (;;) {
+          const seq = changes.current;
+          if (!(await attemptSave()) || changes.current === seq) break;
         }
       } finally {
         saving.current = null;
@@ -102,7 +143,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     })();
     saving.current = task;
     return task;
-  }, [deck.id, t.reloadedNotice]);
+  }, [attemptSave]);
 
   useEffect(() => {
     if (saveState !== "dirty") return;
@@ -112,8 +153,8 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
 
   const flushSave = useCallback(async () => {
     if (saving.current) await saving.current;
-    if (changes.current !== 0 && latest.current && saveState !== "saved") await saveNow();
-  }, [saveNow, saveState]);
+    if (unsaved.current) await saveNow();
+  }, [saveNow]);
 
   useEffect(() => {
     if (saveState === "saved") return;
@@ -124,9 +165,24 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     return () => window.removeEventListener("beforeunload", guard);
   }, [saveState]);
 
+  // Leaving through a link or closing the tab must not lose the last keystrokes: send what is unsaved anyway.
+  useEffect(() => {
+    const leave = () => {
+      if (!unsaved.current) return;
+      const d = latest.current;
+      saveDeckOnLeave(deck.id, { title: d.title, slides: d.slides.map((s) => ({ id: s.id, html: s.html, video: s.video })), version: d.version });
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [deck.id]);
+
   // --- slides -----------------------------------------------------------------------------------------------------
 
   const setSlideHtml = useCallback((id: string, html: string) => {
+    dirtySlides.current.add(id);
     change((d) => ({ ...d, slides: d.slides.map((s) => (s.id === id ? { ...s, html } : s)) }));
   }, [change]);
 
@@ -141,17 +197,18 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   }, []);
 
   const jumpTo = useCallback((id: string, focus = false) => {
+    if (!latest.current.slides.some((s) => s.id === id)) return;
     setActiveId(id);
     document.getElementById(`slide-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (focus) editors.get(id)?.commands.focus("end");
-  }, [editors]);
+    if (focus) editorsRef.current.get(id)?.commands.focus("end");
+  }, []);
 
   useEffect(() => {
-    // Back from "Add to slides": show the slide that just received the animation.
-    if (window.location.hash !== "#embedded") return;
-    const target = [...deck.slides].reverse().find((s) => s.video);
+    // Back from "Add to slides" (#slide-<id>): show the slide that just received the animation.
+    const match = /^#slide-([0-9a-f]{8})$/.exec(window.location.hash);
+    if (!match) return;
     history.replaceState(null, "", window.location.pathname);
-    if (target) setTimeout(() => jumpTo(target.id), 150);
+    setTimeout(() => jumpTo(match[1]), 150);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the deck this page opened with
   }, []);
 
@@ -159,7 +216,9 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     const slide: Slide = { id: newSlideId(), html: "", video: null };
     const at = activeId ? doc.slides.findIndex((s) => s.id === activeId) + 1 : doc.slides.length;
     change((d) => ({ ...d, slides: [...d.slides.slice(0, at), slide, ...d.slides.slice(at)] }));
-    setTimeout(() => jumpTo(slide.id, true), 50);
+    setActiveId(slide.id);
+    setFocusId(slide.id); // the new editor focuses itself when it mounts
+    setTimeout(() => document.getElementById(`slide-${slide.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
   function moveSlide(from: number, to: number) {
@@ -203,6 +262,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     setChatBusy(true);
     try {
       await flushSave();
+      const baseline = latest.current.slides.map((s) => s.id); // what the server has when the request leaves
       const result = await chatDeck(
         deck.id,
         { message, slide_id: useSlide ? activeId : null, selection: useSelection ? selection : null },
@@ -210,14 +270,14 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
       );
       const snapshot = latest.current.slides;
       changes.current += 1;
-      setDoc((d) => ({
+      update((d) => ({
         ...d,
-        slides: mergeChatResult(d.slides, result),
-        version: result.deck.version,
+        slides: mergeChatResult(d.slides, result, baseline),
+        version: Math.max(d.version, result.deck.version),
         animations: result.deck.animations,
         chat: result.deck.chat,
       }));
-      setUndoSnapshot(result.edits.length ? snapshot : null);
+      setUndo(result.edits.length ? { snapshot, edits: result.edits } : null);
       // Local edits made while waiting still need saving; the merge kept them.
       setSaveState((s) => (s === "saved" ? "saved" : "dirty"));
       const first = result.edits.find((e) => e.op !== "delete");
@@ -228,10 +288,10 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   }
 
   function undoChat() {
-    if (!undoSnapshot) return;
-    const snapshot = undoSnapshot;
-    change((d) => ({ ...d, slides: snapshot }));
-    setUndoSnapshot(null);
+    if (!undo) return;
+    const { snapshot, edits } = undo;
+    change((d) => ({ ...d, slides: undoChatEdits(d.slides, snapshot, edits) }));
+    setUndo(null);
   }
 
   // --- header -----------------------------------------------------------------------------------------------------
@@ -268,6 +328,8 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     setRatio((e.clientX - r.left) / r.width);
   }
 
+  // The active slide must exist: after the AI (or an undo) removes it, fall back to the first slide.
+  const activeId = wantedActive && doc.slides.some((s) => s.id === wantedActive) ? wantedActive : (doc.slides[0]?.id ?? null);
   const animations = useMemo(() => new Map(doc.animations.map((a) => [a.project_id, a])), [doc.animations]);
   const labelOf = (id: string) => {
     const i = doc.slides.findIndex((s) => s.id === id);
@@ -353,7 +415,10 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
             <SlideStrip
               slides={doc.slides}
               activeId={activeId}
-              onSelect={(id) => jumpTo(id)}
+              onSelect={(id) => {
+                if (id !== activeId) setSelection(null);
+                jumpTo(id);
+              }}
               onMove={moveSlide}
               onAdd={addSlide}
               onDelete={deleteSlide}
@@ -376,7 +441,12 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
                         active={s.id === activeId}
                         animation={s.video ? animations.get(s.video) : undefined}
                         onChange={(html) => setSlideHtml(s.id, html)}
-                        onFocus={setActiveId}
+                        autoFocus={s.id === focusId}
+                        onFocus={(id) => {
+                          if (id !== activeId) setSelection(null);
+                          setActiveId(id);
+                        }}
+                        onBlur={() => void flushSave()}
                         onSelection={setSelection}
                         onRemoveVideo={() => removeVideo(s.id)}
                         editorRef={registerEditor}
@@ -418,11 +488,10 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
             activeSlide={activeSlide}
             selection={selection}
             busy={chatBusy}
-            canUndo={undoSnapshot !== null}
+            canUndo={undo !== null}
             onSend={sendChat}
             onUndo={undoChat}
             onClearSelection={() => setSelection(null)}
-            onClearSlide={() => undefined}
             onJump={(id) => jumpTo(id)}
             slideLabel={labelOf}
           />

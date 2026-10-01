@@ -152,6 +152,7 @@ const en = {
     undo: "Undo",
     redo: "Redo",
   },
+  colorNames: { ink: "Ink", muted: "Grey", accent: "Blue", green: "Green", gold: "Brown", red: "Red", purple: "Purple", amber: "Amber" } as Record<string, string>,
 
   // New project
   newTitle: "New visual explanation",
@@ -440,6 +441,7 @@ const el: Messages = {
     undo: "Αναίρεση",
     redo: "Επανάληψη",
   },
+  colorNames: { ink: "Μελάνι", muted: "Γκρι", accent: "Μπλε", green: "Πράσινο", gold: "Καφέ", red: "Κόκκινο", purple: "Μοβ", amber: "Κεχριμπάρι" },
 
   newTitle: "Νέα οπτική εξήγηση",
   newSubtitle: "Γράψτε την έννοια και, αν θέλετε, προσθέστε υλικό του μαθήματος. Η Lara γράφει ένα σενάριο που μπορείτε να διορθώσετε πριν δημιουργηθεί οτιδήποτε.",

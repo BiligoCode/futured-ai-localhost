@@ -332,10 +332,11 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
               {t.chooseSlides}
             </h2>
             <p className="text-sm text-muted">{t.partOfSlides}</p>
-            <button type="button" onClick={() => setEmbedding(true)} disabled={updating} className="btn btn-primary w-full" title={updating ? t.addToSlidesHint : undefined}>
+            <button type="button" onClick={() => setEmbedding(true)} disabled={updating || project.preview.version === 0} className="btn btn-primary w-full">
               <Icon name="slides" />
               {t.addToSlides}
             </button>
+            {(updating || project.preview.version === 0) && <p className="hint text-center">{t.addToSlidesHint}</p>}
             <Link href={`/decks/${project.deck_id}`} className="btn btn-ghost w-full">
               <Icon name="back" size={16} />
               {t.backToSlides}

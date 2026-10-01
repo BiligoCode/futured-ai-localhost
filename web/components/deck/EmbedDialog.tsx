@@ -63,8 +63,9 @@ export function EmbedDialog({ project, deckId, onClose }: { project: Project; de
     setBusy(true);
     setError(null);
     try {
-      await embedAnimation(deckId, { project_id: project.id, slide_id: mode === "new_end" ? null : slideId, mode });
-      router.push(`/decks/${deckId}#embedded`);
+      const updated = await embedAnimation(deckId, { project_id: project.id, slide_id: mode === "new_end" ? null : slideId, mode });
+      const target = mode === "append" ? slideId : [...updated.slides].reverse().find((s) => s.video === project.id)?.id;
+      router.push(`/decks/${deckId}${target ? `#slide-${target}` : ""}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);

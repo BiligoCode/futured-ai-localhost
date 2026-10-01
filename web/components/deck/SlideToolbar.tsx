@@ -128,8 +128,8 @@ export function SlideToolbar({ editor }: { editor: Editor | null }) {
             key={c.hex}
             type="button"
             disabled={off}
-            aria-label={`${t.tb.color}: ${c.name}`}
-            title={c.name}
+            aria-label={`${t.tb.color}: ${t.colorNames[c.name] ?? c.name}`}
+            title={t.colorNames[c.name] ?? c.name}
             aria-pressed={state?.color === c.hex}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => run((ch) => ch.setColor(c.hex).run())}
