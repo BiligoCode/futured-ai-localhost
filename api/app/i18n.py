@@ -45,6 +45,7 @@ EXACT = {
     "Slide is too long": "Η διαφάνεια είναι πολύ μεγάλη",
     "This slide does not exist": "Αυτή η διαφάνεια δεν υπάρχει",
     "Poster not found": "Η εικόνα δεν βρέθηκε",
+    "Export not found": "Το αρχείο εξαγωγής δεν βρέθηκε",
 }
 
 PREFIXES = {

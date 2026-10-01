@@ -133,3 +133,20 @@ async def test_404_in_greek(tmp_path):
         r = await c.get("/decks/nope", headers={"X-Lara-Lang": "el"})
         assert r.status_code == 404 and r.json()["detail"] == "Οι διαφάνειες δεν βρέθηκαν"
         assert (await c.get("/decks/nope")).json()["detail"] == "Slides not found"
+
+
+async def test_export_route_and_download(tmp_path):
+    app = make_app(tmp_path)
+    async with api_client(app) as c:
+        d = await create_deck(c, title="Δέντρα")
+        r = await c.post(f"/decks/{d['id']}/export", json={"format": "docx"})
+        assert r.status_code == 200, r.text
+        assert r.json() == {"url": f"/decks/{d['id']}/export/deck.docx", "filename": "Δέντρα.docx"}
+        f = await c.get(r.json()["url"])
+        assert f.status_code == 200
+        assert f.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert "filename*=utf-8''%CE%94%CE%AD%CE%BD%CF%84%CF%81%CE%B1.docx" in f.headers["content-disposition"]
+        assert f.content[:2] == b"PK"
+        assert (await c.get(f"/decks/{d['id']}/export/nope.pdf")).status_code == 404
+        r = await c.post(f"/decks/{d['id']}/export", json={"format": "pdf"})
+        assert r.json()["filename"] == "Δέντρα.pdf" and (await c.get(r.json()["url"])).content[:5] == b"%PDF-"

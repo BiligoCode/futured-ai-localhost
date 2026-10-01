@@ -7,13 +7,14 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.deck_chat import DeckChatError, run_chat
+from app.deck_export import MEDIA_TYPES, export_deck
 from app.compose import cut_path
 from app.deck_store import new_slide_id
-from app.deck_view import build_view, summarize
+from app.deck_view import animation_refs, build_view, summarize
 from app.ingest import EmptyMaterialError, build_material
 from app.media import make_poster
 from app.models import (ChatMessage, Deck, DeckChatRequest, DeckChatResult, DeckSummary, DeckUpdate, DeckView,
-                        EmbedRequest, Language, Slide)
+                        EmbedRequest, ExportRequest, ExportResult, Language, Slide)
 from app.slides_html import SlideTooLong, sanitize_slide_html
 
 router = APIRouter()
@@ -151,3 +152,32 @@ def get_poster(deck_id: str, project_id: str, request: Request) -> FileResponse:
     if "/" in project_id or not path.is_file():
         raise HTTPException(404, "Poster not found")
     return FileResponse(path, media_type="image/jpeg")
+
+
+@router.post("/decks/{deck_id}/export")
+async def export(deck_id: str, body: ExportRequest, request: Request) -> ExportResult:
+    """Build the PDF or Word file (a zip with the videos when animations are embedded) and say where to get it."""
+    store, decks = request.app.state.store, request.app.state.decks
+    deck = decks.get(deck_id)
+    refs = animation_refs(deck, store.list())
+    posters = {a.project_id: decks.deck_dir(deck_id) / "posters" / f"{a.project_id}.jpg" for a in refs}
+    videos = {a.project_id: cut_path(store, a.project_id, a.cut) for a in refs if a.cut}
+    try:
+        path, filename, _ = await asyncio.to_thread(export_deck, decks.deck_dir(deck_id), deck, refs, posters, videos,
+                                                    body.format)
+    except Exception as exc:  # noqa: BLE001 - a broken font or file must reach the UI as a readable error
+        raise HTTPException(502, f"Export failed: {exc}") from exc
+    path.with_suffix(path.suffix + ".name").write_text(filename, encoding="utf-8")
+    return ExportResult(url=f"/decks/{deck_id}/export/{path.name}", filename=filename)
+
+
+@router.get("/decks/{deck_id}/export/{file}")
+def download_export(deck_id: str, file: str, request: Request) -> FileResponse:
+    decks = request.app.state.decks
+    decks.get(deck_id)
+    path = decks.deck_dir(deck_id) / "export" / file
+    if "/" in file or path.suffix.lstrip(".") not in MEDIA_TYPES or not path.is_file():
+        raise HTTPException(404, "Export not found")
+    name_file = path.with_suffix(path.suffix + ".name")
+    filename = name_file.read_text(encoding="utf-8") if name_file.is_file() else file
+    return FileResponse(path, media_type=MEDIA_TYPES[path.suffix.lstrip(".")], filename=filename)
