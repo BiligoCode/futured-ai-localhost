@@ -6,11 +6,13 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import Settings, load_settings
+from app.deck_store import DeckStore
 from app.i18n import request_language, translate
 from app.jobs import JobRunner
 from app.llm import LLM, BedrockLLM
 from app.render import Renderer, make_renderer
-from app.routes import export, projects, scenes, voice
+from app.models import DeckNotFound
+from app.routes import decks, export, projects, scenes, voice
 from app.routes.common import schedule_refresh
 from app.store import ProjectNotFound, ProjectStore, SceneNotFound
 from app.tts import CachedTTS, ElevenLabsTTS, TTSProvider
@@ -38,6 +40,7 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     )
     app.state.settings = settings
     app.state.store = store
+    app.state.decks = DeckStore(settings.data_dir)
     app.state.llm = llm or BedrockLLM(settings)
     app.state.renderer = renderer or make_renderer(settings)
     app.state.tts = tts or CachedTTS(
@@ -59,6 +62,10 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     async def scene_not_found(request: Request, exc: SceneNotFound) -> JSONResponse:
         return error(request, 404, "Scene not found")
 
+    @app.exception_handler(DeckNotFound)
+    async def deck_not_found(request: Request, exc: DeckNotFound) -> JSONResponse:
+        return error(request, 404, "Slides not found")
+
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return error(request, exc.status_code, exc.detail, getattr(exc, "headers", None))
@@ -71,6 +78,7 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     app.include_router(scenes.router)
     app.include_router(voice.router)
     app.include_router(export.router)
+    app.include_router(decks.router)
     return app
 
 
