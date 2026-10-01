@@ -320,7 +320,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button type="button" onClick={() => void createAnimation()} className="btn btn-secondary">
             <Icon name="film" size={16} />
             {t.createAnimation}
