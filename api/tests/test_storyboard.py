@@ -4,7 +4,7 @@ from app.storyboard import StoryboardError, generate_storyboard
 from tests.fakes import STORYBOARD_JSON, ScriptedLLM
 
 ARGS = dict(material="Course notes on optimisation", concept="gradient descent", style="visual",
-            tone="friendly", language="el")
+            duration="short", language="el")
 
 
 def test_parses_valid_storyboard():

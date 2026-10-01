@@ -37,7 +37,7 @@ class ProjectStore:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def create(self, *, title: str, concept: str, style: str, tone: str, language: str,
+    def create(self, *, title: str, concept: str, style: str, duration: str = "medium", language: str,
                material_text: str, scenes: list[SceneDraft]) -> Project:
         project = Project(
             id=uuid.uuid4().hex[:10],
@@ -45,7 +45,7 @@ class ProjectStore:
             title=title,
             concept=concept,
             style=style,
-            tone=tone,
+            duration=duration,
             language=language,
             scenes=[Scene(id=new_scene_id(), title=d.title, visual=d.visual, narration=d.narration)
                     for d in scenes],
@@ -96,6 +96,13 @@ class ProjectStore:
         changed = 0
         for project in self.list():
             dirty = False
+            for cut in (project.preview, project.final):
+                if cut.status == "building":
+                    cut.status = "done" if cut.version > 0 else "none"
+                    dirty = True
+            if project.narrating:
+                project.narrating = False
+                dirty = True
             for scene in project.scenes:
                 touched = False
                 if scene.render_status in BUSY_RENDER:

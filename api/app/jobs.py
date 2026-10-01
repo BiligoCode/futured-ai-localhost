@@ -10,6 +10,7 @@ class JobRunner:
 
     def __init__(self) -> None:
         self._tasks: dict[str, asyncio.Task] = {}
+        self._again: set[str] = set()
 
     def is_running(self, key: str) -> bool:
         return key in self._tasks
@@ -21,6 +22,21 @@ class JobRunner:
         self._tasks[key] = task
         task.add_done_callback(lambda t, k=key: self._tasks.pop(k, None) if self._tasks.get(k) is t else None)
         return True
+
+    def submit_coalesced(self, key: str, factory: Callable[[], Awaitable[None]]) -> None:
+        """Run the job now, or once more after the running one finishes if it is already running."""
+        if key in self._tasks:
+            self._again.add(key)
+            return
+
+        async def loop() -> None:
+            while True:
+                self._again.discard(key)
+                await self._run(factory)
+                if key not in self._again:
+                    return
+
+        self.submit(key, loop)
 
     @staticmethod
     async def _run(factory: Callable[[], Awaitable[None]]) -> None:

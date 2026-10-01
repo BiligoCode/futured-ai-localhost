@@ -22,7 +22,7 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
         store.recover_interrupted()
         yield
 
-    app = FastAPI(title="Educator Visual Explanations API", lifespan=lifespan)
+    app = FastAPI(title="Lara API", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),

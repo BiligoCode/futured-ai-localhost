@@ -9,7 +9,7 @@ OK, BAD = RenderResult(ok=True), RenderResult(ok=False, error="Traceback: boom")
 
 def new_project(tmp_path):
     store = ProjectStore(tmp_path)
-    p = store.create(title="t", concept="gd", style="", tone="", language="el", material_text="notes",
+    p = store.create(title="t", concept="gd", style="", language="el", material_text="notes",
                      scenes=[SceneDraft(title="A", visual="parabola", narration="hello there")])
     return store, p.id, p.scenes[0].id
 
@@ -88,3 +88,42 @@ async def test_llm_exception_marks_failed(tmp_path):
     await build_scene(store, ScriptedLLM([RuntimeError("throttled")]), FakeRenderer([OK]), pid, sid)
     s = store.get(pid).scene(sid)
     assert s.render_status == "failed" and "throttled" in s.last_error
+
+
+MESSY = RenderResult(ok=True, issues=['At 4.0s: 12 texts are drawn on top of each other: Text "2", Text "5".',
+                                      'At 9.0s: Text "Βρέθηκε!" is cut off by the edge of the frame.'])
+LESS_MESSY = RenderResult(ok=True, issues=["At 7.0s: 2 texts are drawn on top of each other."])
+
+
+async def test_layout_issues_are_fixed_before_accepting(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    llm = ScriptedLLM([VALID_CODE] * 2)
+    await build_scene(store, llm, FakeRenderer([MESSY, OK]), pid, sid)
+    s = store.get(pid).scene(sid)
+    assert (s.render_status, s.code_version, s.layout_issues, s.last_error) == ("done", 2, [], None)
+    fix_prompt = llm.calls[1][1][0]["content"]
+    assert "layout check" in fix_prompt and "12 texts are drawn on top of each other" in fix_prompt
+
+
+async def test_unfixable_layout_keeps_best_render(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    renderer = FakeRenderer([MESSY, LESS_MESSY, MESSY])
+    await build_scene(store, ScriptedLLM([VALID_CODE] * 3), renderer, pid, sid)
+    s = store.get(pid).scene(sid)
+    assert len(renderer.calls) == 3  # the first render + MAX_LAYOUT_FIXES
+    assert (s.render_status, s.code_version, s.layout_issues) == ("done", 2, LESS_MESSY.issues)
+
+
+async def test_layout_fix_that_breaks_code_falls_back_to_earlier_render(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    await build_scene(store, ScriptedLLM([VALID_CODE] * 6), FakeRenderer([MESSY, BAD]), pid, sid)
+    s = store.get(pid).scene(sid)
+    assert (s.render_status, s.code_version, s.layout_issues) == ("done", 1, MESSY.issues)
+
+
+async def test_revising_animation_marks_professor_recording_stale(tmp_path):
+    store, pid, sid = new_project(tmp_path)
+    await build_scene(store, ScriptedLLM([VALID_CODE]), FakeRenderer([OK]), pid, sid)
+    await store.update_scene(pid, sid, audio_source="professor", audio_status="done")
+    await build_scene(store, ScriptedLLM([VALID_CODE]), FakeRenderer([OK]), pid, sid, instruction="slower")
+    assert store.get(pid).scene(sid).audio_stale

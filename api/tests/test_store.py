@@ -11,13 +11,13 @@ def draft(t="A"):
 
 
 def new(store, scenes):
-    return store.create(title="t", concept="c", style="", tone="", language="en",
+    return store.create(title="t", concept="c", style="", language="en",
                         material_text="m", scenes=scenes)
 
 
 def test_create_and_get_roundtrip(tmp_path):
     store = ProjectStore(tmp_path)
-    p = store.create(title="Κλίση", concept="gradient descent", style="", tone="", language="el",
+    p = store.create(title="Κλίση", concept="gradient descent", style="", language="el",
                      material_text="notes", scenes=[draft()])
     assert store.get(p.id) == p
     assert p.scenes[0].render_status == "pending" and p.scenes[0].code_version == 0

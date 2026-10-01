@@ -10,7 +10,7 @@ from tests.fakes import FakeRenderer, FakeTTS, ScriptedLLM
 
 def make_app(tmp_path, tts):
     app = create_app(make_settings(tmp_path), llm=ScriptedLLM([]), renderer=FakeRenderer([RenderResult(ok=True)]), tts=tts)
-    p = app.state.store.create(title="t", concept="c", style="", tone="", language="el", material_text="m",
+    p = app.state.store.create(title="t", concept="c", style="", language="el", material_text="m",
                                scenes=[SceneDraft(title=f"S{i}", visual="v", narration=f"Αφήγηση {i}") for i in range(3)])
     return app, p.id, [s.id for s in p.scenes]
 
