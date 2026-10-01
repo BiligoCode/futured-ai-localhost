@@ -3,9 +3,10 @@ import asyncio
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 
-from app.ingest import EmptyMaterialError, build_material
+from app.ingest import MAX_MATERIAL_CHARS, EmptyMaterialError, build_material
 from app.models import DurationRange, Language, Project, ProjectSettings, Scene, StoryboardUpdate
 from app.routes.common import schedule_refresh
+from app.slides_html import deck_material_text
 from app.store import new_scene_id
 from app.storyboard import StoryboardError, generate_storyboard
 from app.voice import clear_voice
@@ -23,17 +24,23 @@ async def create_project(
     material_text: str = Form(""),
     files: list[UploadFile] | None = File(None),
     replaces: str = Form(""),
+    deck_id: str = Form(""),
 ) -> Project:
     """Draft a script. With `replaces` (back to setup from an existing video), that project is deleted once the
-    new script exists, so a failed or cancelled redraft leaves it untouched."""
+    new script exists, so a failed or cancelled redraft leaves it untouched. With `deck_id` (an animation for a
+    deck of slides), the deck's text comes first in the material."""
     store = request.app.state.store
     if replaces:
         store.get(replaces)
+    deck = request.app.state.decks.get(deck_id) if deck_id else None
     pdfs = [await f.read() for f in files or []]
     try:
         material = await asyncio.to_thread(build_material, pdfs, material_text)
     except EmptyMaterialError as exc:
         raise HTTPException(422, str(exc)) from exc
+    if deck:
+        deck_text = deck_material_text(deck.title, [s.html for s in deck.slides])
+        material = "\n\n".join(p for p in (deck_text, material) if p)[:MAX_MATERIAL_CHARS]
     try:
         title, drafts = await asyncio.to_thread(
             generate_storyboard, request.app.state.llm, material=material, concept=concept,
@@ -45,7 +52,7 @@ async def create_project(
     if await request.is_disconnected():
         raise HTTPException(499, "Cancelled")  # the professor cancelled while the script was being drafted
     project = store.create(title=title, concept=concept, style=style, duration=duration, language=language,
-                           material_text=material, scenes=drafts)
+                           material_text=material, scenes=drafts, deck_id=deck.id if deck else None)
     if replaces:
         await _delete(request.app, replaces)
     return project

@@ -40,7 +40,7 @@ class ProjectStore:
         return d
 
     def create(self, *, title: str, concept: str, style: str, duration: str = "medium", language: str,
-               material_text: str, scenes: list[SceneDraft]) -> Project:
+               material_text: str, scenes: list[SceneDraft], deck_id: str | None = None) -> Project:
         project = Project(
             id=uuid.uuid4().hex[:10],
             created_at=datetime.now(timezone.utc),
@@ -49,6 +49,7 @@ class ProjectStore:
             style=style,
             duration=duration,
             language=language,
+            deck_id=deck_id,
             scenes=[Scene(id=new_scene_id(), title=d.title, visual=d.visual, narration=d.narration)
                     for d in scenes],
         )
