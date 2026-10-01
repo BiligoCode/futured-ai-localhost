@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { Stepper } from "@/components/Stepper";
 import { createProject } from "@/lib/api";
 
@@ -12,12 +13,40 @@ const DURATIONS = [
   { value: "long", label: "3–5 min" },
 ] as const;
 
-const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none";
+const LANGUAGES = [
+  { value: "el", label: "Ελληνικά", lang: "el" },
+  { value: "en", label: "English", lang: "en" },
+] as const;
+
+/** A row of radio buttons that reads as a segmented control. */
+function Segmented({ name, legend, options, defaultValue }: {
+  name: string;
+  legend: string;
+  options: readonly { value: string; label: string; lang?: string }[];
+  defaultValue: string;
+}) {
+  return (
+    <fieldset>
+      <legend className="label">{legend}</legend>
+      <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-sunken p-1">
+        {options.map((o) => (
+          <label key={o.value} className="cursor-pointer" lang={o.lang}>
+            <input type="radio" name={name} value={o.value} defaultChecked={o.value === defaultValue} className="peer sr-only" />
+            <span className="block rounded-md px-3 py-2 text-center text-sm text-muted transition-colors peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgb(15_20_27/0.12)] peer-focus-visible:outline-2 peer-focus-visible:outline-accent hover:text-ink">
+              {o.label}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 export default function NewProject() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,61 +65,94 @@ export default function NewProject() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Stepper current={1} />
-      <div>
-        <h1 className="text-2xl font-semibold">New visual explanation</h1>
-        <p className="text-slate-600">Give Lara your course material and the concept. It drafts a script you can edit before anything is animated.</p>
+      <div className="max-w-2xl">
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight">New visual explanation</h1>
+        <p className="mt-2 text-lg text-muted">
+          Give Lara your course material and the concept. It drafts a script you can edit before anything is animated.
+        </p>
       </div>
 
-      <form onSubmit={onSubmit} className="grid gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-2">
-        <div className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block font-medium">Concept to explain *</span>
-            <input name="concept" required className={field} placeholder="e.g. Κάθοδος κλίσης (gradient descent)" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block font-medium">Lecture notes or slides (PDF)</span>
-            <input name="file" type="file" accept="application/pdf" className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-700" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block font-medium">…or paste course material</span>
-            <textarea name="material_text" rows={6} className={field} placeholder="Definitions, notation, examples from your course" />
-          </label>
+      <form onSubmit={onSubmit} className="panel grid overflow-hidden lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div className="space-y-6 p-6 sm:p-8">
+          <div>
+            <label htmlFor="concept" className="label">
+              Concept to explain
+            </label>
+            <input
+              id="concept"
+              name="concept"
+              required
+              autoComplete="off"
+              className="field font-serif text-2xl leading-snug"
+              placeholder="e.g. Κάθοδος κλίσης (gradient descent)…"
+            />
+          </div>
+
+          <div>
+            <span className="label">Lecture notes or slides</span>
+            <label className="group flex cursor-pointer items-center gap-4 rounded-lg border border-dashed border-rule-strong bg-paper px-4 py-4 transition-colors hover:border-accent focus-within:border-accent focus-within:outline-2 focus-within:outline-accent">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface text-accent ring-1 ring-rule">
+                <Icon name="file" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink">{fileName ?? "Choose a PDF"}</span>
+                <span className="hint block">{fileName ? "Click to choose a different file" : "Optional. Lara reads the notation and examples from it."}</span>
+              </span>
+              <input
+                name="file"
+                type="file"
+                accept="application/pdf"
+                className="sr-only"
+                onChange={(e) => setFileName(e.currentTarget.files?.[0]?.name ?? null)}
+              />
+            </label>
+          </div>
+
+          <div>
+            <label htmlFor="material_text" className="label">
+              Or paste course material
+            </label>
+            <textarea
+              id="material_text"
+              name="material_text"
+              rows={6}
+              autoComplete="off"
+              className="field"
+              placeholder="Definitions, notation, examples from your course…"
+            />
+          </div>
         </div>
-        <div className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block font-medium">Language</span>
-            <select name="language" defaultValue="el" className={field}>
-              <option value="el">Ελληνικά</option>
-              <option value="en">English</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block font-medium">Style &amp; tone</span>
-            <textarea name="style" rows={2} className={field} placeholder="e.g. minimal and step by step, friendly, for first-year students" />
-          </label>
-          <fieldset>
-            <legend className="mb-1 block font-medium">Video length</legend>
-            <div className="grid grid-cols-3 gap-2">
-              {DURATIONS.map((d) => (
-                <label key={d.value} className="cursor-pointer">
-                  <input type="radio" name="duration" value={d.value} defaultChecked={d.value === "medium"} className="peer sr-only" />
-                  <span className="block rounded-lg border border-slate-300 bg-white px-3 py-2 text-center text-sm peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:font-medium peer-checked:text-indigo-700 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400">
-                    {d.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-70"
-          >
-            {submitting ? "Reading your material and drafting a script…" : "Draft script"}
-          </button>
+
+        <div className="flex flex-col gap-6 border-t border-rule bg-paper/60 p-6 sm:p-8 lg:border-t-0 lg:border-l">
+          <Segmented name="language" legend="Language" options={LANGUAGES} defaultValue="el" />
+          <div>
+            <label htmlFor="style" className="label">
+              Style &amp; tone
+            </label>
+            <textarea
+              id="style"
+              name="style"
+              rows={3}
+              autoComplete="off"
+              className="field"
+              placeholder="e.g. minimal and step by step, friendly, for first-year students…"
+            />
+          </div>
+          <Segmented name="duration" legend="Video length" options={DURATIONS} defaultValue="medium" />
+
+          <div className="mt-auto space-y-3 pt-2">
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" disabled={submitting} className="btn btn-primary w-full py-3 disabled:cursor-wait">
+              {submitting ? "Reading your material and drafting a script…" : "Draft script"}
+            </button>
+            <p className="hint text-center">Nothing is animated until you approve the script.</p>
+          </div>
         </div>
       </form>
     </div>
