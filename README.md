@@ -61,7 +61,7 @@ data/  projects on disk (git-ignored)
 | `ELEVENLABS_API_KEY` | — | AI narration (`eleven_multilingual_v2`, speaks Greek) |
 | `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Voice for any language without its own voice below |
 | `ELEVENLABS_VOICE_ID_EL` / `ELEVENLABS_VOICE_ID_EN` | — | A voice per video language (a native Greek voice reads Greek best) |
-| `ELEVENLABS_MODEL` | `eleven_multilingual_v2` | e.g. `eleven_v3`; models other than multilingual v2 also get `language_code` |
+| `ELEVENLABS_MODEL` | `eleven_multilingual_v2` | e.g. `eleven_v4` (tested with Greek, `language_code` and caption timestamps); models other than multilingual v2 also get `language_code` |
 | `ELEVENLABS_SPEED` / `_STABILITY` / `_SIMILARITY` / `_STYLE` | — | Optional `voice_settings`, e.g. `ELEVENLABS_SPEED=0.95` for teaching |
 | `RENDER_QUALITY` | `m` | `m` = 720p30, `l` = 480p15 (faster while developing) |
 | `DATA_DIR` | `<repo>/data` | |

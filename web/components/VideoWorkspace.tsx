@@ -78,6 +78,47 @@ function Player({ src, onPausedAt }: { src: string; onPausedAt: (t: number | nul
   );
 }
 
+/** Captions for the AI voice: an explicit On/Off switch that says its state in words. */
+function CaptionsSwitch({ on, disabled, hint, updating, onToggle }: {
+  on: boolean;
+  disabled: boolean;
+  hint: string;
+  updating: boolean;
+  onToggle: (on: boolean) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={`flex items-center gap-3 border-t border-rule bg-sunken/60 px-4 py-3 ${disabled ? "opacity-60" : ""}`}>
+      <span className="min-w-0 flex-1">
+        <span id="captions-label" className="block text-sm font-semibold">
+          {t.captions}
+        </span>
+        <span className="block text-xs text-muted">{hint}</span>
+        {updating && <span className="mt-1 block text-xs text-gold-ink">{t.captionsUpdating}</span>}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-labelledby="captions-label"
+        disabled={disabled}
+        onClick={() => onToggle(!on)}
+        className="flex shrink-0 items-center gap-2 rounded-full text-sm font-semibold disabled:cursor-not-allowed"
+      >
+        <span className={`w-9 text-right ${on ? "text-accent" : "text-muted"}`}>{on ? t.captionsOn : t.captionsOff}</span>
+        <span
+          className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-accent" : "bg-rule-strong"}`}
+          aria-hidden="true"
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${on ? "translate-x-5" : ""}`}
+          />
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export function VideoWorkspace({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
   const { t } = useI18n();
   const [recordFrom, setRecordFrom] = useState<string | null>(null);
@@ -184,6 +225,8 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             : t.narrationPartial
           : t.narrationAi;
   const hasAiVoice = sources.has("ai");
+  // Narrated only with the professor's own voice: captions would change nothing.
+  const captionsUnused = voiced.length > 0 && !hasAiVoice;
 
   const recordDisabled = acting || project.narrating || busyScenes.length > 0 || preview.status !== "done" || project.preview_outdated;
   const aiDisabled = acting || project.narrating || (voiced.length === scenes.length && !sources.has("professor") && !voiceFailed);
@@ -192,7 +235,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-4">
         <div className="stage rounded-2xl shadow-[0_24px_48px_-28px_rgb(15_20_27/0.6)] ring-1 ring-black/5">
-          <Player key={`${kind}-${cut.version}`} src={cutUrl(project.id, kind, cut.version)} onPausedAt={setPlayerAt} />
+          <Player key={cutUrl(project.id, kind, cut)} src={cutUrl(project.id, kind, cut)} onPausedAt={setPlayerAt} />
         </div>
         <Timeline cut={cut} busy={busyIds} />
         <div className="space-y-2" aria-live="polite">
@@ -277,21 +320,30 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
                 <span className="block text-xs font-normal text-white/80">{t.recordHint}</span>
               </span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (sources.has("professor") && !confirm(t.confirmReplace)) return;
-                void act(() => generateAiNarration(project.id));
-              }}
-              disabled={aiDisabled}
-              className="btn btn-secondary w-full justify-start gap-3 px-4 py-3 text-left"
-            >
-              <Icon name="voice" size={20} className="shrink-0 text-accent" />
-              <span>
-                {project.narrating ? t.generating : t.useAi}
-                <span className="block text-xs font-normal text-muted">{t.aiHint}</span>
-              </span>
-            </button>
+            <div className="overflow-hidden rounded-lg ring-1 ring-rule-strong">
+              <button
+                type="button"
+                onClick={() => {
+                  if (sources.has("professor") && !confirm(t.confirmReplace)) return;
+                  void act(() => generateAiNarration(project.id));
+                }}
+                disabled={aiDisabled}
+                className="btn btn-secondary w-full justify-start gap-3 rounded-none border-0 px-4 py-3 text-left"
+              >
+                <Icon name="voice" size={20} className="shrink-0 text-accent" />
+                <span>
+                  {project.narrating ? t.generating : t.useAi}
+                  <span className="block text-xs font-normal text-muted">{t.aiHint}</span>
+                </span>
+              </button>
+              <CaptionsSwitch
+                on={project.captions}
+                disabled={acting || captionsUnused}
+                hint={captionsUnused ? t.captionsNeedAi : t.captionsHint}
+                updating={project.captions && hasAiVoice && project.final.status === "building"}
+                onToggle={(on) => act(() => setCaptions(project.id, on))}
+              />
+            </div>
           </div>
           {voiced.length > 0 && (
             <button
@@ -305,22 +357,6 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             </button>
           )}
 
-          <label className="flex cursor-pointer items-start gap-3 border-t border-rule pt-4">
-            <input
-              type="checkbox"
-              checked={project.captions}
-              disabled={acting}
-              onChange={(e) => act(() => setCaptions(project.id, e.currentTarget.checked))}
-              className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-            />
-            <span>
-              <span className="block text-sm font-semibold">{t.captions}</span>
-              <span className="block text-xs text-muted">{hasAiVoice || !voiced.length ? t.captionsHint : t.captionsNeedAi}</span>
-              {project.captions && hasAiVoice && project.final.status === "building" && (
-                <span className="mt-1 block text-xs text-gold-ink">{t.captionsUpdating}</span>
-              )}
-            </span>
-          </label>
         </section>
 
         <section className="space-y-3 border-t border-rule pt-6" aria-labelledby="download-heading">
@@ -332,7 +368,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
           </div>
           <p className="text-sm text-muted">{kind === "final" ? t.downloadNarrated : t.downloadAnimation}</p>
           <a
-            href={updating ? undefined : cutUrl(project.id, kind, cut.version)}
+            href={updating ? undefined : cutUrl(project.id, kind, cut)}
             download
             aria-disabled={updating}
             className="btn btn-primary w-full"
