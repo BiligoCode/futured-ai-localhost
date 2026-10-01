@@ -18,11 +18,11 @@ async def create_project(
     duration: DurationRange = Form("medium"),
     language: Language = Form("el"),
     material_text: str = Form(""),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
 ) -> Project:
-    pdf_bytes = await file.read() if file is not None else None
+    pdfs = [await f.read() for f in files or []]
     try:
-        material = await asyncio.to_thread(build_material, pdf_bytes, material_text)
+        material = await asyncio.to_thread(build_material, pdfs, material_text)
     except EmptyMaterialError as exc:
         raise HTTPException(422, str(exc)) from exc
     try:

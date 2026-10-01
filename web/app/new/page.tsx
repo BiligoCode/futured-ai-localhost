@@ -46,15 +46,25 @@ export default function NewProject() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+
+  function addFiles(input: HTMLInputElement) {
+    const picked = Array.from(input.files ?? []);
+    // Reset so picking the same file again after removing it still fires onChange.
+    input.value = "";
+    setFiles((prev) => [
+      ...prev,
+      ...picked.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size)),
+    ]);
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     const form = new FormData(e.currentTarget);
-    const file = form.get("file");
-    if (file instanceof File && file.size === 0) form.delete("file");
+    form.delete("files");
+    for (const f of files) form.append("files", f);
     try {
       const project = await createProject(form);
       router.push(`/projects/${project.id}`);
@@ -86,7 +96,7 @@ export default function NewProject() {
               required
               autoComplete="off"
               className="field font-serif text-2xl leading-snug"
-              placeholder="e.g. Κάθοδος κλίσης (gradient descent)…"
+              placeholder="e.g. Bubble sort…"
             />
           </div>
 
@@ -97,17 +107,38 @@ export default function NewProject() {
                 <Icon name="file" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">{fileName ?? "Choose a PDF"}</span>
-                <span className="hint block">{fileName ? "Click to choose a different file" : "Optional. Lara reads the notation and examples from it."}</span>
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {files.length ? "Add more PDFs" : "Choose PDFs"}
+                </span>
+                <span className="hint block">Optional. Lara reads the notation and examples from them.</span>
               </span>
               <input
-                name="file"
+                name="files"
                 type="file"
                 accept="application/pdf"
+                multiple
                 className="sr-only"
-                onChange={(e) => setFileName(e.currentTarget.files?.[0]?.name ?? null)}
+                onChange={(e) => addFiles(e.currentTarget)}
               />
             </label>
+            {files.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {files.map((f, i) => (
+                  <li key={`${f.name}-${f.size}`} className="flex items-center gap-2 rounded-md bg-sunken px-3 py-1.5 text-sm">
+                    <Icon name="file" size={16} className="shrink-0 text-accent" />
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${f.name}`}
+                      className="text-muted hover:text-ink"
+                      onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      <Icon name="close" size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div>
