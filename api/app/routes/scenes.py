@@ -52,6 +52,8 @@ async def render_project(project_id: str, request: Request) -> Project:
     for scene in store.get(project_id).scenes:
         if scene.render_status in ("pending", "failed"):
             await _start(request, project_id, scene.id)
+    # After going back to the script, reordered or removed parts change the video without any new render.
+    await schedule_refresh(request.app, project_id)
     return store.get(project_id)
 
 

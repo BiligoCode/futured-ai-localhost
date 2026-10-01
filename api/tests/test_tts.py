@@ -74,3 +74,27 @@ def test_cached_timed_and_fallback_for_untimed_provider(tmp_path):
     assert c.synthesize_timed("x", "el") == (b"A", ALIGNMENT)
     assert c.synthesize_timed("x", "el") == (b"A", ALIGNMENT) and len(inner.calls) == 1
     assert synthesize_timed(FakeTTS(b"B"), "y", "el") == (b"B", None)
+
+
+def test_elevenlabs_voice_per_language_and_settings():
+    seen = []
+
+    def handler(req):
+        seen.append((str(req.url), json.loads(req.content)))
+        return httpx.Response(200, content=b"MP3")
+
+    tts = ElevenLabsTTS("k", "default", "eleven_v3", transport=httpx.MockTransport(handler),
+                        voices={"el": "greek", "en": ""}, voice_settings={"speed": 0.95})
+    tts.synthesize("Γεια", "el")
+    tts.synthesize("Hi", "en")
+    assert seen[0][0].endswith("/text-to-speech/greek") and seen[1][0].endswith("/text-to-speech/default")
+    assert seen[0][1] == {"text": "Γεια", "model_id": "eleven_v3", "language_code": "el",
+                          "voice_settings": {"speed": 0.95}}
+    assert tts.cache_key("x", "el") != tts.cache_key("x", "en")
+
+
+def test_multilingual_v2_gets_no_language_code_and_keeps_cache_keys():
+    import hashlib
+    tts = ElevenLabsTTS("k", "v")
+    assert "language_code" not in tts._body("x", "el")
+    assert tts.cache_key("x", "el") == hashlib.sha256(b"elevenlabs|v|eleven_multilingual_v2|x").hexdigest()

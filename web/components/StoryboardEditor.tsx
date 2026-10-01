@@ -14,7 +14,11 @@ let keySeq = 0;
 const toDrafts = (p: Project): Draft[] =>
   p.scenes.map((s) => ({ key: s.id, id: s.id, title: s.title, visual: s.visual, narration: s.narration }));
 
-export function StoryboardEditor({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
+export function StoryboardEditor({ project, onChange, onDirty }: {
+  project: Project;
+  onChange: (p: Project) => void;
+  onDirty?: (dirty: boolean) => void;
+}) {
   const { lang, t } = useI18n();
   const timeFormat = new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", { hour: "numeric", minute: "2-digit" });
   const [drafts, setDrafts] = useState<Draft[]>(() => toDrafts(project));
@@ -47,6 +51,8 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
   const add = () => edit((d) => [...d, { key: `new-${++keySeq}`, id: null, title: "", visual: "", narration: "" }]);
 
   const incomplete = drafts.length === 0 || drafts.some((d) => !d.title.trim() || !d.visual.trim() || !d.narration.trim());
+
+  useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
 
   useEffect(() => {
     if (!dirty) return;

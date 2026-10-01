@@ -47,3 +47,24 @@ async def test_submit_coalesced_reruns_once_after_running_job():
     gate.set()
     await j.wait_all()
     assert runs == 2
+
+
+async def test_cancel_stops_job_and_frees_key():
+    j = JobRunner()
+    stopped = asyncio.Event()
+
+    async def job():
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    j.submit("p:a", job)
+    j.submit("p:b", job)
+    j.submit("q:a", job)
+    await asyncio.sleep(0)
+    assert sorted(j.keys("p:")) == ["p:a", "p:b"]
+    await j.cancel(j.keys("p:"))
+    assert stopped.is_set() and j.keys("p:") == [] and j.is_running("q:a")
+    await j.cancel(["q:a", "missing"])
+    assert not j.is_running("q:a")

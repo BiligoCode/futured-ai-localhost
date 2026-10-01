@@ -56,7 +56,12 @@ export const json = (method: string, body: unknown): RequestInit => ({
 
 export const listProjects = () => request<Project[]>("/projects");
 export const getProject = (id: string) => request<Project>(`/projects/${id}`);
-export const createProject = (form: FormData) => request<Project>("/projects", { method: "POST", body: form });
+export const createProject = (form: FormData, signal?: AbortSignal) =>
+  request<Project>("/projects", { method: "POST", body: form, signal });
+export const deleteProject = (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" });
+export const getMaterial = (id: string) => request<string>(`/projects/${id}/material`);
+export const reopenScript = (id: string) => request<Project>(`/projects/${id}/reopen`, { method: "POST" });
+export const cancelProject = (id: string) => request<Project>(`/projects/${id}/cancel`, { method: "POST" });
 export const saveStoryboard = (id: string, scenes: SceneDraft[]) =>
   request<Project>(`/projects/${id}/storyboard`, json("PUT", { scenes }));
 export const startRender = (id: string) => request<Project>(`/projects/${id}/render`, { method: "POST" });

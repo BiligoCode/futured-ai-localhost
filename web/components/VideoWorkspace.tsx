@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { composeVideo, cutUrl, generateAiNarration, removeNarration, setCaptions, startRender } from "@/lib/api";
+import { cancelProject, composeVideo, cutUrl, generateAiNarration, removeNarration, setCaptions, startRender } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { Messages } from "@/lib/messages";
 import { clock, rangeOf } from "@/lib/time";
@@ -14,6 +14,7 @@ import { NarrationRecorder } from "./NarrationRecorder";
 import { CurveSketch } from "./Stage";
 
 const BUSY = new Set(["generating", "rendering", "repairing"]);
+const CANCELLED = "Cancelled"; // the API's last_error for parts the professor stopped
 
 function phaseLabel(scenes: Scene[], t: Messages): string {
   if (scenes.some((s) => s.render_status === "repairing" && s.last_error?.startsWith("Layout:"))) return t.phaseLayout;
@@ -104,6 +105,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
   if (preview.version === 0) {
     const ready = scenes.filter((s) => s.render_status === "done").length;
     const stuck = failedScenes.length > 0 && busyScenes.length === 0;
+    const stopped = stuck && failedScenes.every((s) => s.last_error === CANCELLED);
     return (
       <section className="space-y-4">
         <div className="stage stage-grid grid aspect-video max-h-[70vh] w-full place-items-center rounded-2xl">
@@ -111,7 +113,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             {!stuck && <CurveSketch className="mx-auto w-full max-w-xs" />}
             <div className="space-y-2">
               <p className="font-serif text-2xl leading-tight font-semibold sm:text-3xl">
-                {stuck ? t.partFailed : ready === scenes.length ? t.puttingTogether : t.creating}
+                {stopped ? t.stopped : stuck ? t.partFailed : ready === scenes.length ? t.puttingTogether : t.creating}
               </p>
               {!stuck && ready < scenes.length && <p className="text-sm text-stage-muted">{phaseLabel(busyScenes, t)}</p>}
             </div>
@@ -135,7 +137,12 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             </div>
             {stuck && (
               <button type="button" onClick={() => act(() => startRender(project.id))} disabled={acting} className="btn btn-primary">
-                {t.tryAgain}
+                {stopped ? t.resume : t.tryAgain}
+              </button>
+            )}
+            {busyScenes.length > 0 && (
+              <button type="button" onClick={() => act(() => cancelProject(project.id))} disabled={acting} className="btn btn-secondary">
+                {acting ? t.stopping : t.stop}
               </button>
             )}
           </div>
@@ -191,7 +198,10 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
         <div className="space-y-2" aria-live="polite">
           {changing.length > 0 && (
             <Notice tone="warn">
-              {t.changing(changing.join(", "), phaseLabel(busyScenes, t))}
+              {t.changing(changing.join(", "), phaseLabel(busyScenes, t))}{" "}
+              <button type="button" onClick={() => act(() => cancelProject(project.id))} disabled={acting} className="font-semibold underline underline-offset-2">
+                {t.stop}
+              </button>
             </Notice>
           )}
           {changing.length === 0 && updating && <Notice tone="info">{t.updatingVideo}</Notice>}
@@ -236,6 +246,11 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             <p className="mt-0.5 flex items-center gap-2 text-sm text-muted" aria-live="polite">
               {project.narrating && <span className="pulse-soft h-2 w-2 rounded-full bg-gold" aria-hidden="true" />}
               {project.narrating ? t.generatingAi : narrationLabel}
+              {project.narrating && (
+                <button type="button" onClick={() => act(() => cancelProject(project.id))} disabled={acting} className="ml-auto font-semibold text-ink underline underline-offset-2">
+                  {t.stop}
+                </button>
+              )}
             </p>
           </div>
 

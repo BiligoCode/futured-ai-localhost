@@ -34,10 +34,20 @@ async def test_create_with_pdf(tmp_path):
     assert "Loss surface" in prompt and "Learning rate" in prompt
 
 
-async def test_create_without_material_422(tmp_path):
-    app, _ = make_app(tmp_path)
+async def test_create_without_material_uses_own_knowledge(tmp_path):
+    app, llm = make_app(tmp_path)
     async with api_client(app) as c:
         r = await c.post("/projects", data={"concept": "x"})
+    assert r.status_code == 200
+    assert "none was given" in llm.calls[0][1][0]["content"]
+    assert app.state.store.material(r.json()["id"]) == ""
+
+
+async def test_create_with_unreadable_pdf_422(tmp_path):
+    app, _ = make_app(tmp_path)
+    async with api_client(app) as c:
+        r = await c.post("/projects", data={"concept": "x"},
+                         files=[("files", ("a.pdf", make_pdf(None), "application/pdf"))])
         assert r.status_code == 422
         assert r.json()["detail"] == "No readable text found in the uploaded material"
         assert (await c.get("/projects")).json() == []
@@ -106,3 +116,25 @@ async def test_put_storyboard_after_render_409(tmp_path):
         r = await c.put(f"/projects/{p['id']}/storyboard", json={"scenes": p["scenes"]})
     assert r.status_code == 409
     assert r.json()["detail"] == "Storyboard can only be edited before rendering starts"
+
+
+async def test_material_endpoint(tmp_path):
+    app, _ = make_app(tmp_path)
+    async with api_client(app) as c:
+        p = (await create(c)).json()
+        r = await c.get(f"/projects/{p['id']}/material")
+    assert r.status_code == 200 and r.text == "notes"
+
+
+async def test_redraft_replaces_project_only_on_success(tmp_path):
+    app, _ = make_app(tmp_path, [STORYBOARD_JSON, "bad", "bad", "bad", STORYBOARD_JSON])
+    async with api_client(app) as c:
+        old = (await create(c)).json()
+        r = await create(c, replaces=old["id"])
+        assert r.status_code == 502
+        assert (await c.get(f"/projects/{old['id']}")).status_code == 200
+        r = await create(c, replaces=old["id"], concept="bubble sort")
+        assert r.status_code == 200 and r.json()["concept"] == "bubble sort"
+        assert (await c.get(f"/projects/{old['id']}")).status_code == 404
+        assert [p["id"] for p in (await c.get("/projects")).json()] == [r.json()["id"]]
+        assert (await create(c, replaces="missing")).status_code == 404

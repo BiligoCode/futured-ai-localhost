@@ -155,12 +155,13 @@ def outline(scenes: list[Scene], current: str) -> str:
 def generate_code(llm: LLM, scene: Scene, *, concept: str, style: str, material: str,
                   language: Language, video_outline: str = "") -> str:
     whole = f"The whole video, part by part:\n{video_outline}\n\n" if video_outline else ""
+    notes = ("Course material from the professor (reuse its notation, symbols and examples):\n<<<\n"
+             f"{material[:CODEGEN_MATERIAL_CHARS]}\n>>>\n\n") if material.strip() else ""
     user = (f"Concept being explained: {concept}\n"
             f"Style and tone requested by the professor: {style or 'clean and minimal'}\n\n"
             f"{whole}"
             f"{_scene_brief(scene)}\n\n"
-            "Course material from the professor (reuse its notation, symbols and examples):\n<<<\n"
-            f"{material[:CODEGEN_MATERIAL_CHARS]}\n>>>\n\n"
+            f"{notes}"
             "Write the complete Manim file for this scene.")
     return _ask(llm, language, user)
 

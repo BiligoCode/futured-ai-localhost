@@ -26,6 +26,11 @@ def test_blank_pdf_and_no_text_raises():
         build_material([make_pdf(None)], "   ")
 
 
+def test_no_material_is_empty():
+    assert build_material([], "  ") == ""
+    assert build_material([], None) == ""
+
+
 def test_corrupt_pdf_raises():
     with pytest.raises(EmptyMaterialError, match="Could not read the uploaded PDF"):
         build_material([b"not a pdf"], None)

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ from app.models import Project, Scene, SceneDraft, SceneNotFound
 __all__ = ["ProjectNotFound", "ProjectStore", "SceneNotFound", "new_scene_id"]
 
 INTERRUPTED = "Interrupted by server restart"
+CANCELLED = "Cancelled"
 BUSY_RENDER = {"generating", "rendering", "repairing"}
 
 
@@ -69,6 +71,27 @@ class ProjectStore:
     def material(self, project_id: str) -> str:
         self.get(project_id)
         return (self.project_dir(project_id) / "material.txt").read_text(encoding="utf-8")
+
+    async def delete(self, project_id: str) -> None:
+        self.get(project_id)
+        async with self._locks[project_id]:
+            # A worker thread of a cancelled job may still be writing a file here; leftovers have no project.json.
+            shutil.rmtree(self.project_dir(project_id), ignore_errors=True)
+        self._locks.pop(project_id, None)
+
+    async def stop_busy(self, project_id: str) -> Project:
+        """After its jobs were cancelled: nothing is in progress any more; finished work is kept."""
+        def apply(project: Project) -> None:
+            project.narrating = False
+            for scene in project.scenes:
+                if scene.render_status in BUSY_RENDER:
+                    done = scene.code_version > 0
+                    scene.render_status = "done" if done else "failed"
+                    scene.last_error = None if done else CANCELLED  # a kept render is not an unapplied change
+                if scene.audio_status == "generating":
+                    scene.audio_status = "done" if scene.audio_version > 0 else "none"
+
+        return await self.mutate(project_id, apply)
 
     def save(self, project: Project) -> None:
         path = self.project_dir(project.id) / "project.json"
