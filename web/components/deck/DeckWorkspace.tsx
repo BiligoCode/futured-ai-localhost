@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { ApiError, deleteDeck, getDeck, saveDeck } from "@/lib/api";
+import { ApiError, chatDeck, deleteDeck, getDeck, saveDeck } from "@/lib/api";
+import { mergeChatResult } from "@/lib/deckMerge";
 import { useI18n } from "@/lib/i18n";
 import { slideTitle } from "@/lib/slideHtml";
 import type { AnimationRef, ChatMessage, Deck, Slide } from "@/lib/types";
 import { useDeckSplit } from "@/lib/useDeckSplit";
 
+import { DeckChat } from "./DeckChat";
 import { SlideEditor } from "./SlideEditor";
 import { SlideStrip } from "./SlideStrip";
 import { SlideToolbar } from "./SlideToolbar";
@@ -47,6 +49,8 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [removed, setRemoved] = useState<{ slide: Slide; index: number } | null>(null);
   const [editors, setEditors] = useState<Map<string, Editor>>(() => new Map());
+  const [chatBusy, setChatBusy] = useState(false);
+  const [undoSnapshot, setUndoSnapshot] = useState<Slide[] | null>(null);
   const [ratio, setRatio] = useDeckSplit();
   const panes = useRef<HTMLDivElement>(null);
 
@@ -182,6 +186,43 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     change((d) => ({ ...d, slides: d.slides.map((s) => (s.id === id ? { ...s, video: null } : s)) }));
   }
 
+  // --- chat -------------------------------------------------------------------------------------------------------
+
+  async function sendChat(message: string, useSlide: boolean, useSelection: boolean, signal: AbortSignal) {
+    setChatBusy(true);
+    try {
+      await flushSave();
+      const result = await chatDeck(
+        deck.id,
+        { message, slide_id: useSlide ? activeId : null, selection: useSelection ? selection : null },
+        signal,
+      );
+      const snapshot = latest.current.slides;
+      changes.current += 1;
+      setDoc((d) => ({
+        ...d,
+        slides: mergeChatResult(d.slides, result),
+        version: result.deck.version,
+        animations: result.deck.animations,
+        chat: result.deck.chat,
+      }));
+      setUndoSnapshot(result.edits.length ? snapshot : null);
+      // Local edits made while waiting still need saving; the merge kept them.
+      setSaveState((s) => (s === "saved" ? "saved" : "dirty"));
+      const first = result.edits.find((e) => e.op !== "delete");
+      if (first) setTimeout(() => jumpTo(first.slide_id), 50);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  function undoChat() {
+    if (!undoSnapshot) return;
+    const snapshot = undoSnapshot;
+    change((d) => ({ ...d, slides: snapshot }));
+    setUndoSnapshot(null);
+  }
+
   // --- header -----------------------------------------------------------------------------------------------------
 
   function commitTitle(value: string) {
@@ -217,6 +258,11 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   }
 
   const animations = useMemo(() => new Map(doc.animations.map((a) => [a.project_id, a])), [doc.animations]);
+  const labelOf = (id: string) => {
+    const i = doc.slides.findIndex((s) => s.id === id);
+    return i >= 0 ? slideTitle(doc.slides[i].html) || t.slideN(i + 1) : t.slideN(0);
+  };
+  const activeSlide = activeId ? { id: activeId, label: t.slideN(doc.slides.findIndex((s) => s.id === activeId) + 1) } : null;
   const activeEditor = activeId ? (editors.get(activeId) ?? null) : null;
   const linkedCount = doc.animations.filter((a) => a.status !== "missing").length;
   const saveLabel = saveState === "saving" ? t.saving : saveState === "saved" ? t.saved : saveState === "dirty" ? t.unsaved : t.saveFailedShort;
@@ -347,12 +393,19 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
         />
 
         <aside className="flex min-h-[40dvh] min-w-0 flex-1 flex-col border-t border-rule bg-surface lg:min-h-0 lg:border-t-0" aria-label={t.askLara}>
-          <div className="border-b border-rule px-5 py-3">
-            <h2 className="font-serif text-xl font-semibold">{t.askLara}</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto p-5 text-sm text-muted" data-selection={selection ?? undefined}>
-            {t.chatIntro}
-          </div>
+          <DeckChat
+            messages={doc.chat}
+            activeSlide={activeSlide}
+            selection={selection}
+            busy={chatBusy}
+            canUndo={undoSnapshot !== null}
+            onSend={sendChat}
+            onUndo={undoChat}
+            onClearSelection={() => setSelection(null)}
+            onClearSlide={() => undefined}
+            onJump={(id) => jumpTo(id)}
+            slideLabel={labelOf}
+          />
         </aside>
       </div>
 
