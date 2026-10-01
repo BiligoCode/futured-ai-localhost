@@ -2,9 +2,14 @@ import dataclasses
 import io
 from pathlib import Path
 
+import httpx
 from reportlab.pdfgen import canvas
 
 from app.config import Settings
+
+
+def api_client(app) -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
 
 
 def make_pdf(text: str | None) -> bytes:
