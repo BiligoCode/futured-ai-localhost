@@ -125,7 +125,7 @@ def test_export_deck_zip_and_filename_keeps_greek(tmp_path):
     deck_dir = tmp_path / "deck"
     deck_dir.mkdir()
     path, filename, media_type = export_deck(deck_dir, deck, [ref("pid", "Φυσαλίδα")], {"pid": poster}, {"pid": video}, "pdf")
-    assert path == deck_dir / "export" / "deck-pdf.zip" and filename == "Δέντρα.zip" and media_type == "application/zip"
+    assert path == deck_dir / "export" / "deck-pdf.zip" and filename == "Δέντρα (PDF).zip" and media_type == "application/zip"
     with zipfile.ZipFile(path) as z:
         assert set(z.namelist()) == {"Δέντρα.pdf", "animations/01-Φυσαλίδα.mp4"}
         assert z.read("animations/01-Φυσαλίδα.mp4") == b"mp4" and z.read("Δέντρα.pdf")[:5] == b"%PDF-"

@@ -14,6 +14,7 @@ import { useDeckSplit } from "@/lib/useDeckSplit";
 
 import { AnimationsMenu } from "./AnimationsMenu";
 import { DeckChat } from "./DeckChat";
+import { ExportMenu } from "./ExportMenu";
 import { SlideEditor } from "./SlideEditor";
 import { SlideStrip } from "./SlideStrip";
 import { SlideToolbar } from "./SlideToolbar";
@@ -324,6 +325,12 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
             <Icon name="film" size={16} />
             {t.createAnimation}
           </button>
+          <ExportMenu
+            deckId={deck.id}
+            hasAnimations={doc.slides.some((s) => s.video && animations.get(s.video)?.status === "ready")}
+            onBeforeExport={flushSave}
+            onError={setNotice}
+          />
           <button type="button" onClick={() => void onDelete()} className="btn btn-ghost" title={t.deleteDeck}>
             <Icon name="trash" size={16} />
             <span className="sr-only sm:not-sr-only">{t.deleteDeck}</span>

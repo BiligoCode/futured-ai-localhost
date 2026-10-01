@@ -51,4 +51,4 @@ def export_deck(deck_dir: Path, deck: Deck, animations: list[AnimationRef], post
         z.writestr(f"{name}.{fmt}", document)
         for rel, source in videos.values():
             z.write(source, rel, compress_type=zipfile.ZIP_STORED)  # already compressed video
-    return zip_path, f"{name}.zip", MEDIA_TYPES["zip"]
+    return zip_path, f"{name} ({'PDF' if fmt == 'pdf' else 'Word'}).zip", MEDIA_TYPES["zip"]
