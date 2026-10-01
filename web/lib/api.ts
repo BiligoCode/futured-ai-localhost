@@ -1,4 +1,4 @@
-import type { Project } from "./types";
+import type { Project, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -48,3 +48,6 @@ export const json = (method: string, body: unknown): RequestInit => ({
 export const listProjects = () => request<Project[]>("/projects");
 export const getProject = (id: string) => request<Project>(`/projects/${id}`);
 export const createProject = (form: FormData) => request<Project>("/projects", { method: "POST", body: form });
+export const saveStoryboard = (id: string, scenes: SceneDraft[]) =>
+  request<Project>(`/projects/${id}/storyboard`, json("PUT", { scenes }));
+export const startRender = (id: string) => request<Project>(`/projects/${id}/render`, { method: "POST" });
