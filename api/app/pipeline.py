@@ -39,7 +39,7 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
             code = await asyncio.to_thread(revise_code, llm, current, scene, instruction, language=language)
         else:
             code = await asyncio.to_thread(generate_code, llm, scene, concept=project.concept,
-                                           style=project.style, material=store.material(project_id),
+                                           style=project.style, material=store.full_material(project_id),
                                            language=language, video_outline=outline(project.scenes, scene_id))
 
         error = ""

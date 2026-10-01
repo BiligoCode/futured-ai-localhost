@@ -40,7 +40,8 @@ class ProjectStore:
         return d
 
     def create(self, *, title: str, concept: str, style: str, duration: str = "medium", language: str,
-               material_text: str, scenes: list[SceneDraft], deck_id: str | None = None) -> Project:
+               material_text: str, scenes: list[SceneDraft], deck_id: str | None = None,
+               deck_text: str = "") -> Project:
         project = Project(
             id=uuid.uuid4().hex[:10],
             created_at=datetime.now(timezone.utc),
@@ -55,6 +56,8 @@ class ProjectStore:
         )
         self.project_dir(project.id).mkdir(parents=True)
         (self.project_dir(project.id) / "material.txt").write_text(material_text, encoding="utf-8")
+        if deck_text:
+            (self.project_dir(project.id) / "deck.txt").write_text(deck_text, encoding="utf-8")
         self.save(project)
         return project
 
@@ -70,8 +73,15 @@ class ProjectStore:
         return sorted(projects, key=lambda p: p.created_at, reverse=True)
 
     def material(self, project_id: str) -> str:
+        """The professor's own course material (what the setup form shows again)."""
         self.get(project_id)
         return (self.project_dir(project_id) / "material.txt").read_text(encoding="utf-8")
+
+    def full_material(self, project_id: str) -> str:
+        """What the model reads: the slides the animation was made from (if any), then the professor's material."""
+        deck = self.project_dir(project_id) / "deck.txt"
+        parts = [deck.read_text(encoding="utf-8") if deck.is_file() else "", self.material(project_id)]
+        return "\n\n".join(p for p in parts if p)
 
     async def delete(self, project_id: str) -> None:
         self.get(project_id)

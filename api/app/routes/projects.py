@@ -38,12 +38,11 @@ async def create_project(
         material = await asyncio.to_thread(build_material, pdfs, material_text)
     except EmptyMaterialError as exc:
         raise HTTPException(422, str(exc)) from exc
-    if deck:
-        deck_text = deck_material_text(deck.title, [s.html for s in deck.slides])
-        material = "\n\n".join(p for p in (deck_text, material) if p)[:MAX_MATERIAL_CHARS]
+    deck_text = deck_material_text(deck.title, [s.html for s in deck.slides]) if deck else ""
+    llm_material = "\n\n".join(p for p in (deck_text, material) if p)[:MAX_MATERIAL_CHARS]
     try:
         title, drafts = await asyncio.to_thread(
-            generate_storyboard, request.app.state.llm, material=material, concept=concept,
+            generate_storyboard, request.app.state.llm, material=llm_material, concept=concept,
             style=style, duration=duration, language=language)
     except StoryboardError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -52,7 +51,8 @@ async def create_project(
     if await request.is_disconnected():
         raise HTTPException(499, "Cancelled")  # the professor cancelled while the script was being drafted
     project = store.create(title=title, concept=concept, style=style, duration=duration, language=language,
-                           material_text=material, scenes=drafts, deck_id=deck.id if deck else None)
+                           material_text=material, scenes=drafts, deck_id=deck.id if deck else None,
+                           deck_text=deck_text)
     if replaces:
         await _delete(request.app, replaces)
     return project
