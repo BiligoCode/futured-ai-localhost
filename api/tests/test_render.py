@@ -100,3 +100,23 @@ async def test_layout_check_passes_clean_scene(tmp_path):
     code.write_text(CLEAN_LAYOUT, encoding="utf-8")
     r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
     assert r.ok and r.issues == []
+
+
+@pytest.mark.slow
+async def test_layout_check_flags_tiny_text_but_not_short_glyphs(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(scene_with("""self.play(Write(MathTex("=", font_size=36).shift(UP)))
+        self.play(Write(Text("tiny", font="DejaVu Sans", font_size=30).scale(0.3).shift(DOWN)))"""),
+                    encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    assert r.ok and r.issues == ['At 2.0s: Text "tiny" is too small to read.']
+
+
+@pytest.mark.slow
+async def test_layout_check_reports_where_cut_off_text_is(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(scene_with('self.play(Write(Text("Πολυπλοκότητα", font="DejaVu Sans").move_to(LEFT * 6)))'),
+                    encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    [issue] = r.issues
+    assert "cut off by the edge of the frame: it spans x -" in issue and "visible frame is x -7.11..7.11" in issue

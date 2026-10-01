@@ -37,7 +37,14 @@ export default function Dashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {projects?.map((p) => {
-          const done = p.scenes.filter((s) => s.render_status === "done").length;
+          const status =
+            p.stage === "storyboard"
+              ? "Script draft"
+              : p.preview.version === 0
+                ? "Creating video…"
+                : p.final.version > 0
+                  ? "Narrated"
+                  : "Ready to narrate";
           return (
             <Link
               key={p.id}
@@ -46,7 +53,7 @@ export default function Dashboard() {
             >
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="rounded bg-slate-100 px-2 py-0.5 font-medium uppercase text-slate-600">{p.language}</span>
-                <span className="text-slate-500">{p.stage === "storyboard" ? "Storyboard draft" : `${done}/${p.scenes.length} scenes ready`}</span>
+                <span className="text-slate-500">{status}</span>
               </div>
               <h2 className="font-semibold">{p.title}</h2>
               <p className="mt-1 line-clamp-2 text-sm text-slate-600">{p.concept}</p>

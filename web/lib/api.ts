@@ -1,4 +1,4 @@
-import type { Project, SceneDraft } from "./types";
+import type { CutKind, Hold, Project, ReviseResult, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -51,27 +51,20 @@ export const createProject = (form: FormData) => request<Project>("/projects", {
 export const saveStoryboard = (id: string, scenes: SceneDraft[]) =>
   request<Project>(`/projects/${id}/storyboard`, json("PUT", { scenes }));
 export const startRender = (id: string) => request<Project>(`/projects/${id}/render`, { method: "POST" });
-export const retryScene = (id: string, sid: string) =>
-  request<Project>(`/projects/${id}/scenes/${sid}/retry`, { method: "POST" });
-export const reviseScene = (id: string, sid: string, instruction: string) =>
-  request<Project>(`/projects/${id}/scenes/${sid}/revise`, json("POST", { instruction }));
-export const getSceneCode = (id: string, sid: string) => request<string>(`/projects/${id}/scenes/${sid}/code`);
-export const videoUrl = (id: string, sid: string, version: number) =>
-  `${API_URL}/projects/${id}/scenes/${sid}/video?v=${version}`;
+export const composeVideo = (id: string) => request<Project>(`/projects/${id}/compose`, { method: "POST" });
 
-export const updateNarration = (id: string, sid: string, narration: string) =>
-  request<Project>(`/projects/${id}/scenes/${sid}`, json("PATCH", { narration }));
-export const generateAiVoice = (id: string, sid: string) =>
-  request<Project>(`/projects/${id}/scenes/${sid}/voice/ai`, { method: "POST" });
-export const generateAllAiVoice = (id: string) => request<Project>(`/projects/${id}/voice/ai-all`, { method: "POST" });
-export function uploadRecording(id: string, sid: string, blob: Blob) {
+export const reviseVideo = (id: string, instruction: string, cut: CutKind, atSeconds: number | null) =>
+  request<ReviseResult>(`/projects/${id}/revise`, json("POST", { instruction, cut, at_seconds: atSeconds }));
+
+export const generateAiNarration = (id: string) => request<Project>(`/projects/${id}/narration/ai`, { method: "POST" });
+export const removeNarration = (id: string) => request<Project>(`/projects/${id}/narration`, { method: "DELETE" });
+export function uploadTake(id: string, blob: Blob, fromScene: string, holds: Hold[]) {
   const form = new FormData();
   form.append("file", blob, "take.webm");
-  return request<Project>(`/projects/${id}/scenes/${sid}/voice/recording`, { method: "POST", body: form });
+  form.append("from_scene", fromScene);
+  form.append("holds", JSON.stringify(holds));
+  return request<Project>(`/projects/${id}/narration/recording`, { method: "POST", body: form });
 }
-export const clearVoice = (id: string, sid: string) =>
-  request<Project>(`/projects/${id}/scenes/${sid}/voice`, { method: "DELETE" });
-export const exportProject = (id: string) => request<{ url: string }>(`/projects/${id}/export`, { method: "POST" });
-export const audioUrl = (id: string, sid: string, bust: number) =>
-  `${API_URL}/projects/${id}/scenes/${sid}/audio?v=${bust}`;
-export const exportUrl = (id: string, bust: number) => `${API_URL}/projects/${id}/export.mp4?v=${bust}`;
+
+export const cutUrl = (id: string, kind: CutKind, version: number) =>
+  `${API_URL}/projects/${id}/${kind === "final" ? "export" : "preview"}.mp4?v=${version}`;

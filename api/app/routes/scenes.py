@@ -81,7 +81,7 @@ async def revise_video(project_id: str, body: ProjectReviseRequest, request: Req
     app = request.app
     store = app.state.store
     project = store.get(project_id)
-    if not project.rendered():
+    if project.preview.version == 0:
         raise HTTPException(409, "Wait until the video is ready before asking for changes")
     cut = project.final if body.cut == "final" and project.final.version > 0 else project.preview
     try:

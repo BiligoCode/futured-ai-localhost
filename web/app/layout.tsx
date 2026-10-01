@@ -7,8 +7,8 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin", "greek"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FuturEd — Visual explanations for educators",
-  description: "Turn your course material into narrated animations.",
+  title: "Lara — Learning Assessment & Resource Automation",
+  description: "Turn your course material into a narrated animated explanation.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -18,9 +18,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <header className="border-b border-slate-200 bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">F</span>
-              FuturEd
-              <span className="hidden text-sm font-normal text-slate-500 sm:inline">· Visual explanations for educators</span>
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">L</span>
+              Lara
+              <span className="hidden text-sm font-normal text-slate-500 sm:inline">· Learning Assessment &amp; Resource Automation</span>
             </Link>
             <Link href="/new" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
               New explanation

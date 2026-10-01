@@ -106,5 +106,8 @@ def fix_layout(llm: LLM, code: str, issues: list[str], *, language: Language) ->
             f"{_issue_list(issues)}\n\n```python\n{code}\n```\n\n"
             "Fix every problem without changing what the animation explains: move each label onto its own shape "
             "or position, replace or fade out old text before showing new text in the same place, and keep "
-            "everything inside the frame. Return the full corrected file.")
+            "everything inside the frame. For something cut off by the frame, place it relative to the edge "
+            "(`.to_edge(LEFT, buff=0.5)`, `.to_corner(...)`) or shrink it, instead of moving it to fixed "
+            "coordinates; check the target of every `.animate.move_to(...)` / `.shift(...)` too. "
+            "Return the full corrected file.")
     return _ask(llm, language, user)

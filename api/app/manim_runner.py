@@ -14,7 +14,7 @@ from manim.__main__ import main
 MAX_ISSUES = 8
 OVERLAP_RATIO = 0.2   # share of the smaller text's box covered by the other one
 FRAME_MARGIN = 0.05   # scene units a text may stick out of the frame before it counts as cut off
-MIN_TEXT_HEIGHT = 0.12
+MIN_FONT_SIZE = 14  # effective size on screen; the prompt asks for 30+ for labels
 
 _TEXT_TYPES = ("Text", "MarkupText", "Paragraph", "MathTex", "Tex", "SingleStringMathTex",
                "DecimalNumber", "Integer", "Variable")
@@ -63,6 +63,14 @@ def _label(mob: Mobject) -> str:
     return type(mob).__name__
 
 
+def _font_size(mob: Mobject) -> float:
+    """Effective font size after scaling. Bounding-box height would flag short glyphs such as "=" or "-"."""
+    try:
+        return float(mob.font_size)
+    except (AttributeError, TypeError, ValueError, ZeroDivisionError):
+        return mob.height / 0.0105  # digits are ~0.0105 scene units tall per point
+
+
 def _box(mob: Mobject) -> tuple[float, float, float, float]:
     return mob.get_left()[0], mob.get_bottom()[1], mob.get_right()[0], mob.get_top()[1]
 
@@ -88,11 +96,14 @@ def check(scene: Scene) -> None:
     at = f"At {scene.renderer.time:.1f}s"
     texts = [t for t in _texts(scene.mobjects) if _visible(t)]
     fx0, fy0, fx1, fy1 = _frame(scene)
+    zoom = config.frame_width / max(fx1 - fx0, 1e-6)  # a zoomed-in camera makes text larger on screen
     for t in texts:
         x0, y0, x1, y1 = _box(t)
         if x0 < fx0 - FRAME_MARGIN or x1 > fx1 + FRAME_MARGIN or y0 < fy0 - FRAME_MARGIN or y1 > fy1 + FRAME_MARGIN:
-            _report(("frame", id(t)), f"{at}: {_label(t)} is cut off by the edge of the frame.")
-        if y1 - y0 < MIN_TEXT_HEIGHT:
+            _report(("frame", id(t)),
+                    f"{at}: {_label(t)} is cut off by the edge of the frame: it spans x {x0:.2f}..{x1:.2f}, "
+                    f"y {y0:.2f}..{y1:.2f}, but the visible frame is x {fx0:.2f}..{fx1:.2f}, y {fy0:.2f}..{fy1:.2f}.")
+        if _font_size(t) * zoom < MIN_FONT_SIZE:
             _report(("small", id(t)), f"{at}: {_label(t)} is too small to read.")
     # Group texts drawn on top of each other into clusters, so twelve stacked labels are one issue, not 66.
     parent = list(range(len(texts)))

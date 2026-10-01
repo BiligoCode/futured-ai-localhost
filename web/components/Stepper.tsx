@@ -1,4 +1,4 @@
-const STEPS = ["Setup", "Storyboard", "Scenes", "Voice & Export"] as const;
+const STEPS = ["Setup", "Script", "Animation", "Review & narrate"] as const;
 
 export function Stepper({ current }: { current: 1 | 2 | 3 | 4 }) {
   return (

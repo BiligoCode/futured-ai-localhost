@@ -1,11 +1,23 @@
-# FuturEd — AI visual explanations for educators
+# Lara — Learning Assessment & Resource Automation
 
-Upload your course material, name a concept, and FuturEd drafts a storyboard, writes and renders a
-[Manim](https://www.manim.community/) animation for every scene (repairing its own code when a render fails),
-and narrates it with an AI voice or your own recorded voice. Greek and English.
+Upload your course material, name a concept, and Lara drafts a script, writes and renders a
+[Manim](https://www.manim.community/) animation for it, and narrates it with an AI voice or your own voice.
+Greek and English.
 
-**Flow:** Setup → Storyboard (edit / reorder / approve) → Scenes (live status, chat revisions per scene) →
-Voice & Export (AI voice or teleprompter recording per scene → one MP4).
+**Flow:** Setup (concept, material, style & tone, length) → Script (edit / reorder / approve) → one video.
+The professor only ever sees a single video:
+
+- **Ask for a change** in plain words ("when the array gets iterated…", "at 0:32 …"). Lara works out which
+  part of the video is meant (using timestamps and the paused player position as hints) and changes its
+  animation, its narration, or both. Only that part is re-rendered and re-encoded.
+- **Record your voice** over the whole animation. Pause the animation at any moment to explain longer
+  (Space); the pause is kept in the final video as a held frame. Re-record from any point later.
+- **AI voice** narrates the whole script instead.
+
+**Layout quality gate.** Every render runs through `app/manim_runner.py`, which checks the frame after each
+animation for text drawn on top of other text, text cut off by the frame edge, and unreadably small text.
+Problems go back to the model with coordinates (like a crash would) for up to two fixes; if they persist,
+the cleanest render is kept and the remaining issues are stored on the scene (`layout_issues`).
 
 ```
 api/   FastAPI service: Bedrock LLM, Manim rendering, ElevenLabs TTS, ffmpeg
@@ -30,6 +42,7 @@ data/  projects on disk (git-ignored)
 | `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | |
 | `RENDER_QUALITY` | `m` | `m` = 720p30, `l` = 480p15 (faster while developing) |
 | `DATA_DIR` | `<repo>/data` | |
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated dashboard origins |
 
 Check Bedrock access: `cd api && uv run python scripts/check_bedrock.py` (prints `ok`).
 
@@ -60,9 +73,8 @@ and keep `data/` intact:
 
 ```bash
 cd api && uv run python scripts/seed_demo.py --concept "Κάθοδος κλίσης (gradient descent)" \
-  --pdf path/to/lecture.pdf --language el --tone "φιλικός, για πρωτοετείς"
+  --pdf path/to/lecture.pdf --language el --style "φιλικός, για πρωτοετείς" --duration medium
 ```
 
-It prints the project id and exits non-zero if any scene could not be rendered (fix those in the dashboard
-with a revision, then export there). During the pitch, if a live render is slow, open the seeded project
-from the dashboard. If the API restarts mid-render, affected scenes show **Failed → Retry**.
+It prints the project id and exits non-zero if any scene could not be rendered (retry them in the dashboard). During the pitch, if a live render is slow, open the seeded project
+from the dashboard. If the API restarts mid-render, the dashboard offers **Try again**.
