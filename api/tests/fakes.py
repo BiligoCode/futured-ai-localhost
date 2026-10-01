@@ -18,6 +18,32 @@ class ScriptedLLM:
         return item
 
 
+class FakeRenderer:
+    """Async renderer returning scripted RenderResults; repeats the last one when exhausted."""
+
+    def __init__(self, results):
+        self.results = list(results)
+        self.calls: list[tuple] = []
+
+    async def __call__(self, code_path, output_path):
+        self.calls.append((code_path, output_path))
+        result = self.results.pop(0) if len(self.results) > 1 else self.results[0]
+        if result.ok:
+            output_path.write_bytes(b"fake-mp4")
+        return result
+
+
+VALID_CODE = """from manim import *
+
+class GeneratedScene(Scene):
+    def construct(self):
+        self.play(Write(Text("Γεια", font="DejaVu Sans")))
+        self.wait(1)
+"""
+
+INVALID_SYNTAX_CODE = "from manim import *\nclass GeneratedScene(Scene:\n    pass\n"
+
+
 STORYBOARD_JSON = json.dumps({
     "title": "Κάθοδος κλίσης",
     "scenes": [

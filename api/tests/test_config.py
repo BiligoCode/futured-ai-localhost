@@ -10,7 +10,7 @@ def test_defaults_when_values_empty(tmp_path, monkeypatch):
     s = load_settings(env)
     assert s.bedrock_access_key_id == "abc"
     assert s.bedrock_region == "us-east-1"
-    assert s.bedrock_model == "deepseek.v3.2"
+    assert s.bedrock_model == "zai.glm-5"
     assert s.render_quality == "m"
     assert s.elevenlabs_voice_id == "JBFqnCBsd6RMkjVDRZzb"
     assert s.data_dir.name == "data"
