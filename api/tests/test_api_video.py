@@ -146,3 +146,16 @@ async def test_revise_before_ready_409(tmp_path):
     async with api_client(app) as c:
         r = await c.post(f"/projects/{pid}/revise", json={"instruction": "x"})
     assert r.status_code == 409
+
+
+@pytest.mark.slow
+async def test_startup_composes_videos_for_existing_projects(tmp_path):
+    app, pid, sids = make_app(tmp_path)
+    for sid in sids:  # rendered before videos were composed
+        make_clip(app.state.store.scene_dir(pid, sid) / "render_v1.mp4", 2)
+        await app.state.store.update_scene(pid, sid, code_version=1, render_status="done")
+    restarted = create_app(make_settings(tmp_path), llm=ScriptedLLM([]), renderer=ClipRenderer(), tts=FakeTTS(b""))
+    async with restarted.router.lifespan_context(restarted):
+        await restarted.state.jobs.wait_all()
+    p = restarted.state.store.get(pid)
+    assert p.preview.status == "done" and not p.preview_outdated
