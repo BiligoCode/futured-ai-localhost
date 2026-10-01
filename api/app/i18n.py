@@ -44,6 +44,7 @@ EXACT = {
     "The animation is not ready yet": "Η κινούμενη εικόνα δεν είναι ακόμα έτοιμη",
     "Slide is too long": "Η διαφάνεια είναι πολύ μεγάλη",
     "This slide does not exist": "Αυτή η διαφάνεια δεν υπάρχει",
+    "Poster not found": "Η εικόνα δεν βρέθηκε",
 }
 
 PREFIXES = {

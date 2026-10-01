@@ -1,16 +1,19 @@
 import asyncio
+import html
 import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.deck_chat import DeckChatError, run_chat
+from app.compose import cut_path
 from app.deck_store import new_slide_id
 from app.deck_view import build_view, summarize
 from app.ingest import EmptyMaterialError, build_material
+from app.media import make_poster
 from app.models import (ChatMessage, Deck, DeckChatRequest, DeckChatResult, DeckSummary, DeckUpdate, DeckView,
-                        Language, Slide)
+                        EmbedRequest, Language, Slide)
 from app.slides_html import SlideTooLong, sanitize_slide_html
 
 router = APIRouter()
@@ -111,3 +114,40 @@ async def chat(deck_id: str, body: DeckChatRequest, request: Request) -> DeckCha
                             ChatMessage(role="assistant", content=reply, edits=log, at=now)])[-CHAT_KEEP:]
 
     return DeckChatResult(deck=_view(request, await decks.mutate(deck_id, apply)), reply=reply, edits=log)
+
+
+@router.post("/decks/{deck_id}/embed")
+async def embed_animation(deck_id: str, body: EmbedRequest, request: Request) -> DeckView:
+    """Put a finished animation on a slide (or on a new slide), with a poster frame for the exports."""
+    store, decks = request.app.state.store, request.app.state.decks
+    deck = decks.get(deck_id)
+    project = store.get(body.project_id)
+    if body.mode != "new_end" and body.slide_id not in {s.id for s in deck.slides}:
+        raise HTTPException(422, "This slide does not exist")
+    if project.preview.version == 0:
+        raise HTTPException(409, "The animation is not ready yet")
+    kind = "final" if project.final.version > 0 else "preview"
+    cut = project.final if kind == "final" else project.preview
+    poster = decks.deck_dir(deck_id) / "posters" / f"{project.id}.jpg"
+    await asyncio.to_thread(make_poster, cut_path(store, project.id, kind), poster, min(cut.duration * 0.3, 8))
+    new_slide = Slide(id=new_slide_id(), html=f"<h2>{html.escape(project.title, quote=False)}</h2>", video=project.id)
+
+    def apply(d: Deck) -> None:
+        if body.mode == "append":
+            d.slide(body.slide_id).video = project.id
+        elif body.mode == "new_after":
+            d.slides.insert(d.slides.index(d.slide(body.slide_id)) + 1, new_slide)
+        else:
+            d.slides.append(new_slide)
+
+    return _view(request, await decks.mutate(deck_id, apply))
+
+
+@router.get("/decks/{deck_id}/posters/{project_id}.jpg")
+def get_poster(deck_id: str, project_id: str, request: Request) -> FileResponse:
+    decks = request.app.state.decks
+    decks.get(deck_id)
+    path = decks.deck_dir(deck_id) / "posters" / f"{project_id}.jpg"
+    if "/" in project_id or not path.is_file():
+        raise HTTPException(404, "Poster not found")
+    return FileResponse(path, media_type="image/jpeg")
