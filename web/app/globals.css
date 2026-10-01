@@ -1,6 +1,280 @@
 @import "tailwindcss";
 
+/*
+ * Lara's palette: lecture-hall ink and paper for the interface, Manim's own colours for the video stage.
+ * The stage (dark, with a faint NumberPlane grid) is the one bold surface; everything around it stays quiet.
+ */
 @theme inline {
-  --font-sans: var(--font-inter), "DejaVu Sans", system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-commissioner), "DejaVu Sans", system-ui, sans-serif;
+  --font-serif: var(--font-stix), "DejaVu Serif", Georgia, serif;
+}
+
+@theme {
+  --color-paper: #f2f4f6;
+  --color-surface: #ffffff;
+  --color-sunken: #e8ecf0;
+  --color-ink: #18212e;
+  --color-muted: #566173;
+  --color-faint: #8a94a3;
+  --color-rule: #d7dce3;
+  --color-rule-strong: #b9c2cd;
+
+  --color-accent: #1b6f8c;
+  --color-accent-hover: #135a73;
+  --color-accent-soft: #e2f0f5;
+
+  --color-manim: #58c4dd;
+  --color-gold: #e2a13b;
+  --color-gold-soft: #fbf1dd;
+  --color-gold-ink: #74490a;
+  --color-rec: #c93838;
+  --color-rec-hover: #ab2b2b;
+  --color-rec-soft: #fbe9e9;
+  --color-danger-ink: #9d2727;
+
+  --color-stage: #0f141b;
+  --color-stage-raised: #18202a;
+  --color-stage-ink: #e7edf3;
+  --color-stage-muted: #8d9aab;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-feature-settings: "kern";
+    touch-action: manipulation;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-manim) 35%, transparent);
+  }
+}
+
+@layer components {
+  /* Buttons: one shape, four jobs. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.5625rem 1rem;
+    font-weight: 560;
+    line-height: 1.25rem;
+    font-size: 0.9375rem;
+    transition-property: background-color, border-color, color, box-shadow;
+    transition-duration: 150ms;
+    cursor: pointer;
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.18);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--color-accent-hover);
+  }
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule-strong);
+  }
+  .btn-secondary:not(:disabled):hover {
+    border-color: var(--color-ink);
+  }
+  .btn-record {
+    background: var(--color-rec);
+    color: #fff;
+    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.2);
+  }
+  .btn-record:not(:disabled):hover {
+    background: var(--color-rec-hover);
+  }
+  .btn-ghost {
+    color: var(--color-muted);
+    padding-inline: 0.5rem;
+  }
+  .btn-ghost:not(:disabled):hover {
+    color: var(--color-ink);
+    background: var(--color-sunken);
+  }
+  .btn-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    color: var(--color-muted);
+    transition-property: background-color, color;
+    transition-duration: 150ms;
+  }
+  .btn-icon:not(:disabled):hover {
+    background: var(--color-sunken);
+    color: var(--color-ink);
+  }
+  .btn-icon:disabled {
+    opacity: 0.3;
+  }
+
+  /* Text inputs. */
+  .field {
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-rule-strong);
+    background: var(--color-surface);
+    padding: 0.5625rem 0.75rem;
+    color: var(--color-ink);
+    transition-property: border-color, box-shadow;
+    transition-duration: 150ms;
+  }
+  .field::placeholder {
+    color: var(--color-faint);
+  }
+  .field:hover {
+    border-color: var(--color-faint);
+  }
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 22%, transparent);
+  }
+  .field:disabled {
+    background: var(--color-sunken);
+  }
+  select.field {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+  .hint {
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+  }
+
+  /* A plain working surface. */
+  .panel {
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface);
+  }
+
+  /* Inline status messages. */
+  .notice {
+    display: flex;
+    gap: 0.625rem;
+    border-radius: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    border-left: 3px solid;
+  }
+  .notice-info {
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent);
+    color: #134d61;
+  }
+  .notice-warn {
+    background: var(--color-gold-soft);
+    border-color: var(--color-gold);
+    color: var(--color-gold-ink);
+  }
+  .notice-error {
+    background: var(--color-rec-soft);
+    border-color: var(--color-rec);
+    color: var(--color-danger-ink);
+  }
+
+  /* The dark Manim canvas with a faint NumberPlane grid. */
+  .stage {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-stage);
+    color: var(--color-stage-ink);
+  }
+  .stage-grid {
+    background-image:
+      linear-gradient(to right, rgb(88 196 221 / 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(88 196 221 / 0.07) 1px, transparent 1px);
+    background-size: 2.5rem 2.5rem;
+    background-position: center center;
+  }
+}
+
+/* Manim's Create(): a stroke drawing itself, holding, then clearing. The one ambient motion in the app. */
+@keyframes create {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  55%,
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+.curve-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: create 4.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes pulse-soft {
+  50% {
+    opacity: 0.45;
+  }
+}
+.pulse-soft {
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curve-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .pulse-soft {
+    animation: none;
+  }
+  .btn,
+  .field,
+  .btn-icon {
+    transition: none;
+  }
 }

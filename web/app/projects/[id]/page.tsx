@@ -11,17 +11,27 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const { project, error, setProject } = useProject(id);
 
-  if (error && !project) return <p className="rounded-lg bg-red-50 p-4 text-red-700">{error}</p>;
-  if (!project) return <p className="text-slate-500">Loading…</p>;
+  if (error && !project)
+    return (
+      <p className="notice notice-error" role="alert">
+        {error}
+      </p>
+    );
+  if (!project)
+    return (
+      <p className="text-muted" aria-live="polite">
+        Loading…
+      </p>
+    );
 
   const step = project.stage === "storyboard" ? 2 : project.preview.version === 0 ? 3 : 4;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Stepper current={step} />
-      <div>
-        <h1 className="text-2xl font-semibold">{project.title}</h1>
-        <p className="text-slate-600">{project.concept}</p>
+      <div className="max-w-3xl">
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight break-words">{project.title}</h1>
+        <p className="mt-2 text-lg text-muted break-words">{project.concept}</p>
       </div>
 
       {project.stage === "storyboard" ? (

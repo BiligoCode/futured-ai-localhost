@@ -7,7 +7,9 @@ import { clock, rangeOf } from "@/lib/time";
 import type { Cut, CutKind, Project, Scene } from "@/lib/types";
 
 import { ChangeRequest } from "./ChangeRequest";
+import { Icon } from "./Icon";
 import { NarrationRecorder } from "./NarrationRecorder";
+import { CurveSketch } from "./Stage";
 
 const BUSY = new Set(["generating", "rendering", "repairing"]);
 
@@ -18,27 +20,30 @@ function phaseLabel(scenes: Scene[]): string {
   return "Writing the animation…";
 }
 
-/** A slim bar under the player that highlights the parts of the video being changed. */
+/** A slim bar under the player: part boundaries as ticks, parts being changed in gold. */
 function Timeline({ cut, busy }: { cut: Cut; busy: Set<string> }) {
   if (!cut.duration) return null;
+  const pct = (t: number) => `${(t / cut.duration) * 100}%`;
   return (
-    <div className="relative h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+    <div className="relative h-1.5 rounded-full bg-rule" aria-hidden="true">
       {cut.segments
         .filter((s) => busy.has(s.scene_id))
         .map((s) => (
-          <div
-            key={s.scene_id}
-            className="absolute inset-y-0 animate-pulse bg-amber-400"
-            style={{ left: `${(s.start / cut.duration) * 100}%`, width: `${((s.end - s.start) / cut.duration) * 100}%` }}
-          />
+          <div key={s.scene_id} className="pulse-soft absolute inset-y-0 rounded-full bg-gold" style={{ left: pct(s.start), width: pct(s.end - s.start) }} />
         ))}
+      {cut.segments.slice(1).map((s) => (
+        <div key={s.scene_id} className="absolute -inset-y-0.5 w-0.5 -translate-x-1/2 bg-paper" style={{ left: pct(s.start) }} />
+      ))}
     </div>
   );
 }
 
 function Notice({ tone, children }: { tone: "info" | "warn" | "error"; children: React.ReactNode }) {
-  const styles = { info: "bg-indigo-50 text-indigo-800", warn: "bg-amber-50 text-amber-900", error: "bg-red-50 text-red-800" };
-  return <div className={`rounded-lg p-3 text-sm ${styles[tone]}`}>{children}</div>;
+  return (
+    <div className={`notice notice-${tone}`} role={tone === "error" ? "alert" : undefined}>
+      <p>{children}</p>
+    </div>
+  );
 }
 
 /** The video player. Manim animations open on an empty frame, so show a frame from inside the video until played. */
@@ -49,6 +54,7 @@ function Player({ src, onPausedAt }: { src: string; onPausedAt: (t: number | nul
       src={src}
       controls
       preload="metadata"
+      playsInline
       className="aspect-video w-full"
       onLoadedMetadata={(e) => {
         const v = e.currentTarget;
@@ -96,27 +102,47 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
     const ready = scenes.filter((s) => s.render_status === "done").length;
     const stuck = failedScenes.length > 0 && busyScenes.length === 0;
     return (
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto grid aspect-video max-w-3xl place-items-center rounded-lg bg-slate-900 text-slate-300">
-          <div className="space-y-4 px-6">
-            <p className="text-lg font-medium text-white">
-              {stuck ? "Part of the video could not be created" : ready === scenes.length ? "Putting your video together…" : "Lara is creating your video"}
-            </p>
-            {!stuck && ready < scenes.length && <p className="text-sm">{phaseLabel(busyScenes)}</p>}
-            <div className="mx-auto h-2 w-72 overflow-hidden rounded-full bg-slate-700">
-              <div className="h-full bg-indigo-500 transition-all" style={{ width: `${Math.max(5, (ready / scenes.length) * 100)}%` }} />
+      <section className="space-y-4">
+        <div className="stage stage-grid grid aspect-video max-h-[70vh] w-full place-items-center rounded-2xl">
+          <div className="w-full max-w-md space-y-6 px-6 text-center" aria-live="polite">
+            {!stuck && <CurveSketch className="mx-auto w-full max-w-xs" />}
+            <div className="space-y-2">
+              <p className="font-serif text-2xl leading-tight font-semibold sm:text-3xl">
+                {stuck ? "Part of the video could not be created" : ready === scenes.length ? "Putting your video together…" : "Lara is creating your video"}
+              </p>
+              {!stuck && ready < scenes.length && <p className="text-sm text-stage-muted">{phaseLabel(busyScenes)}</p>}
             </div>
+            <div className="space-y-2">
+              <div
+                className="mx-auto h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-stage-raised"
+                role="progressbar"
+                aria-label="Parts ready"
+                aria-valuemin={0}
+                aria-valuemax={scenes.length}
+                aria-valuenow={ready}
+              >
+                <div
+                  className="h-full rounded-full bg-manim transition-[width] duration-700 ease-out motion-reduce:transition-none"
+                  style={{ width: `${Math.max(4, (ready / scenes.length) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-stage-muted tabular-nums">
+                {ready} of {scenes.length} parts ready
+              </p>
+            </div>
+            {stuck && (
+              <button type="button" onClick={() => act(() => startRender(project.id))} disabled={acting} className="btn btn-primary">
+                Try again
+              </button>
+            )}
           </div>
         </div>
-        {stuck && (
-          <button type="button" onClick={() => act(() => startRender(project.id))} disabled={acting} className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-40">
-            Try again
-          </button>
-        )}
         {preview.status === "failed" && (
           <Notice tone="error">
             The video could not be put together: {preview.error}{" "}
-            <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-medium underline">Try again</button>
+            <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-semibold underline underline-offset-2">
+              Try again
+            </button>
           </Notice>
         )}
         {error && <Notice tone="error">{error}</Notice>}
@@ -148,16 +174,19 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
             : "Your voice covers part of the video; the rest is silent"
           : "Narrated with the AI voice";
 
+  const recordDisabled = acting || project.narrating || busyScenes.length > 0 || preview.status !== "done" || project.preview_outdated;
+  const aiDisabled = acting || project.narrating || (voiced.length === scenes.length && !sources.has("professor") && !voiceFailed);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-3">
-        <div className="overflow-hidden rounded-xl bg-black shadow-sm">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0 space-y-4">
+        <div className="stage rounded-2xl shadow-[0_24px_48px_-28px_rgb(15_20_27/0.6)] ring-1 ring-black/5">
           <Player key={`${kind}-${cut.version}`} src={cutUrl(project.id, kind, cut.version)} onPausedAt={setPlayerAt} />
         </div>
         <Timeline cut={cut} busy={busyIds} />
-        <div className="space-y-2">
+        <div className="space-y-2" aria-live="polite">
           {changing.length > 0 && (
-            <Notice tone="info">
+            <Notice tone="warn">
               Changing {changing.join(", ")}… {phaseLabel(busyScenes)} The video updates when it&apos;s ready.
             </Notice>
           )}
@@ -170,13 +199,17 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
           {failedScenes.length > 0 && busyScenes.length === 0 && (
             <Notice tone="error">
               Part of the video could not be rebuilt.{" "}
-              <button type="button" onClick={() => act(() => startRender(project.id))} className="font-medium underline">Try again</button>
+              <button type="button" onClick={() => act(() => startRender(project.id))} className="font-semibold underline underline-offset-2">
+                Try again
+              </button>
             </Notice>
           )}
           {cutFailed && (
             <Notice tone="error">
               The video could not be put together: {project[cutFailed].error}{" "}
-              <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-medium underline">Try again</button>
+              <button type="button" onClick={() => act(() => composeVideo(project.id))} className="font-semibold underline underline-offset-2">
+                Try again
+              </button>
             </Notice>
           )}
           {error && <Notice tone="error">{error}</Notice>}
@@ -190,69 +223,86 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
         />
       </div>
 
-      <aside className="space-y-4">
-        <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+        <section className="panel space-y-4 p-5" aria-labelledby="narration-heading">
           <div>
-            <h2 className="font-semibold">Narration</h2>
-            <p className="text-sm text-slate-600">{project.narrating ? "Generating the AI voice…" : narrationLabel}</p>
+            <h2 id="narration-heading" className="font-serif text-2xl font-semibold">
+              Narration
+            </h2>
+            <p className="mt-0.5 flex items-center gap-2 text-sm text-muted" aria-live="polite">
+              {project.narrating && <span className="pulse-soft h-2 w-2 rounded-full bg-gold" aria-hidden="true" />}
+              {project.narrating ? "Generating the AI voice…" : narrationLabel}
+            </p>
           </div>
 
           {stale.map((s) => (
             <Notice key={s.id} tone="warn">
               {rangeOf(preview, s.id)} changed after you recorded it.{" "}
-              <button type="button" onClick={() => setRecordFrom(s.id)} className="font-medium underline">
+              <button type="button" onClick={() => setRecordFrom(s.id)} className="font-semibold underline underline-offset-2">
                 Re-record from {clock(preview.segments.find((g) => g.scene_id === s.id)?.start ?? 0)}
               </button>
             </Notice>
           ))}
           {voiceFailed && !project.narrating && <Notice tone="error">The AI voice failed for part of the video. Try again below.</Notice>}
 
-          <button
-            type="button"
-            onClick={() => setRecordFrom(firstStart)}
-            disabled={acting || project.narrating || busyScenes.length > 0 || preview.status !== "done" || project.preview_outdated}
-            className="w-full rounded-lg bg-red-600 px-4 py-3 text-left font-medium text-white hover:bg-red-700 disabled:opacity-40"
-          >
-            🎙 {sources.has("professor") ? "Record again" : "Record your voice"}
-            <span className="block text-xs font-normal text-red-100">The animation plays while you talk. Pause it anytime to explain longer; the pause stays in the video.</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (sources.has("professor") && !confirm("Replace your recording with the AI voice?")) return;
-              void act(() => generateAiNarration(project.id));
-            }}
-            disabled={acting || project.narrating || (voiced.length === scenes.length && !sources.has("professor") && !voiceFailed)}
-            className="w-full rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-left font-medium text-violet-900 hover:bg-violet-100 disabled:opacity-40"
-          >
-            ✨ {project.narrating ? "Generating…" : "Use the AI voice"}
-            <span className="block text-xs font-normal text-violet-700">Reads the script in a natural voice.</span>
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setRecordFrom(firstStart)}
+              disabled={recordDisabled}
+              className="btn btn-record w-full justify-start gap-3 px-4 py-3 text-left"
+            >
+              <Icon name="mic" size={20} className="shrink-0" />
+              <span>
+                {sources.has("professor") ? "Record again" : "Record your voice"}
+                <span className="block text-xs font-normal text-white/80">Pause the animation anytime to explain longer.</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (sources.has("professor") && !confirm("Replace your recording with the AI voice?")) return;
+                void act(() => generateAiNarration(project.id));
+              }}
+              disabled={aiDisabled}
+              className="btn btn-secondary w-full justify-start gap-3 px-4 py-3 text-left"
+            >
+              <Icon name="voice" size={20} className="shrink-0 text-accent" />
+              <span>
+                {project.narrating ? "Generating…" : "Use the AI voice"}
+                <span className="block text-xs font-normal text-muted">Reads the script in a natural voice.</span>
+              </span>
+            </button>
+          </div>
           {voiced.length > 0 && (
             <button
               type="button"
               onClick={() => confirm("Remove all narration?") && act(() => removeNarration(project.id))}
               disabled={acting || project.narrating}
-              className="text-sm text-slate-500 hover:text-red-600 disabled:opacity-40"
+              className="btn btn-ghost -ml-2 text-sm hover:!text-rec"
             >
+              <Icon name="trash" size={16} />
               Remove narration
             </button>
           )}
         </section>
 
-        <section className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
-          <h2 className="font-semibold">Download</h2>
-          <p className="text-sm text-slate-600">
-            {cut.duration ? `${clock(cut.duration)} · ` : ""}
-            {kind === "final" ? "With narration." : "Animation only, no narration yet."}
-          </p>
+        <section className="space-y-3 border-t border-rule pt-6" aria-labelledby="download-heading">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="download-heading" className="font-serif text-2xl font-semibold">
+              Download
+            </h2>
+            {cut.duration > 0 && <span className="text-sm text-muted tabular-nums">{clock(cut.duration)}</span>}
+          </div>
+          <p className="text-sm text-muted">{kind === "final" ? "MP4 with narration." : "MP4, animation only. Add narration to include a voice."}</p>
           <a
-            href={cutUrl(project.id, kind, cut.version)}
+            href={updating ? undefined : cutUrl(project.id, kind, cut.version)}
             download
             aria-disabled={updating}
-            className={"inline-block rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 " + (updating ? "pointer-events-none opacity-40" : "")}
+            className="btn btn-primary w-full"
           >
-            ⬇ Download MP4
+            <Icon name="download" />
+            {updating ? "Updating the video…" : "Download MP4"}
           </a>
         </section>
       </aside>
