@@ -30,7 +30,9 @@ def _serve(request: Request, project_id: str, kind: CutKind, missing: str) -> Fi
     path = cut_path(store, project_id, kind)
     if not path.is_file():
         raise HTTPException(404, missing)
-    return FileResponse(path, media_type="video/mp4", filename=f"{project.title or project_id}.mp4")
+    # Always revalidate: the same path holds a new video after every rebuild.
+    return FileResponse(path, media_type="video/mp4", filename=f"{project.title or project_id}.mp4",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/projects/{project_id}/export.mp4")

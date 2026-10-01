@@ -32,6 +32,7 @@ async def test_export_api(tmp_path):
         assert r.status_code == 200 and r.json() == {"url": f"/projects/{pid}/export.mp4"}
         video = await c.get(f"/projects/{pid}/export.mp4")
     assert video.status_code == 200 and video.headers["content-type"] == "video/mp4"
+    assert video.headers["cache-control"] == "no-cache"  # the same path holds a new video after each rebuild
     assert abs(probe(app.state.store.project_dir(pid) / "export.mp4")["duration"] - 5.3) < 0.25
 
 
