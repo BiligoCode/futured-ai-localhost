@@ -1,4 +1,5 @@
 import io
+from collections.abc import Iterable
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -18,10 +19,8 @@ def extract_pdf_text(data: bytes) -> str:
         raise EmptyMaterialError("Could not read the uploaded PDF") from exc
 
 
-def build_material(pdf_bytes: bytes | None, pasted_text: str | None) -> str:
-    parts = []
-    if pdf_bytes:
-        parts.append(extract_pdf_text(pdf_bytes).strip())
+def build_material(pdfs: Iterable[bytes], pasted_text: str | None) -> str:
+    parts = [extract_pdf_text(data).strip() for data in pdfs if data]
     if pasted_text:
         parts.append(pasted_text.strip())
     material = "\n\n".join(p for p in parts if p)

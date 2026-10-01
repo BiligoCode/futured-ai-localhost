@@ -27,9 +27,11 @@ async def test_create_with_pdf(tmp_path):
     app, llm = make_app(tmp_path)
     async with api_client(app) as c:
         r = await c.post("/projects", data={"concept": "gd"},
-                         files={"file": ("notes.pdf", make_pdf("Loss surface"), "application/pdf")})
+                         files=[("files", ("a.pdf", make_pdf("Loss surface"), "application/pdf")),
+                                ("files", ("b.pdf", make_pdf("Learning rate"), "application/pdf"))])
     assert r.status_code == 200
-    assert "Loss surface" in llm.calls[0][1][0]["content"]
+    prompt = llm.calls[0][1][0]["content"]
+    assert "Loss surface" in prompt and "Learning rate" in prompt
 
 
 async def test_create_without_material_422(tmp_path):

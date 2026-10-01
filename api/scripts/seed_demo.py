@@ -2,7 +2,7 @@
 
 Run the night before the pitch so the dashboard has a finished project to fall back on:
 
-    uv run python scripts/seed_demo.py --concept "Κάθοδος κλίσης" --pdf notes.pdf --language el
+    uv run python scripts/seed_demo.py --concept "Bubble sort" --pdf notes.pdf --language el
 """
 import argparse
 import asyncio
@@ -26,7 +26,7 @@ from app.voice import generate_ai_narration  # noqa: E402
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--concept", required=True)
-    parser.add_argument("--pdf", type=Path)
+    parser.add_argument("--pdf", type=Path, action="append", default=[])
     parser.add_argument("--text", default="")
     parser.add_argument("--language", choices=["el", "en"], default="el")
     parser.add_argument("--style", default="", help="style and tone, e.g. 'minimal, friendly, for first-years'")
@@ -44,7 +44,7 @@ async def main() -> int:
     tts = CachedTTS(ElevenLabsTTS(settings.elevenlabs_api_key, settings.elevenlabs_voice_id),
                     settings.data_dir / "tts_cache")
 
-    material = build_material(args.pdf.read_bytes() if args.pdf else None, args.text)
+    material = build_material([p.read_bytes() for p in args.pdf], args.text)
     print(f"Drafting storyboard with {settings.bedrock_model}…")
     title, drafts = await asyncio.to_thread(generate_storyboard, llm, material=material, concept=args.concept,
                                             style=args.style, duration=args.duration,
