@@ -33,6 +33,26 @@ class FakeRenderer:
         return result
 
 
+class FakeTTS:
+    name = "fake"
+
+    def __init__(self, audio: bytes, fail: bool = False):
+        self.audio = audio
+        self.fail = fail
+        self.calls: list[tuple[str, str]] = []
+
+    def cache_key(self, text: str) -> str:
+        return f"fake-{abs(hash(text))}"
+
+    def synthesize(self, text: str, language: str) -> bytes:
+        from app.tts import TTSError
+
+        self.calls.append((text, language))
+        if self.fail:
+            raise TTSError("ElevenLabs request failed (401)")
+        return self.audio
+
+
 VALID_CODE = """from manim import *
 
 class GeneratedScene(Scene):

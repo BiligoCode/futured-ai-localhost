@@ -1,11 +1,22 @@
 import dataclasses
 import io
+import subprocess
 from pathlib import Path
 
 import httpx
+import pytest
 from reportlab.pdfgen import canvas
 
 from app.config import Settings
+
+
+def ffmpeg_bytes(*args: str) -> bytes:
+    return subprocess.run(["ffmpeg", "-v", "error", *args], capture_output=True, check=True).stdout
+
+
+@pytest.fixture(scope="session")
+def mp3_bytes() -> bytes:
+    return ffmpeg_bytes("-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-f", "mp3", "pipe:1")
 
 
 def api_client(app) -> httpx.AsyncClient:

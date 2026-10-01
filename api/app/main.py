@@ -8,11 +8,13 @@ from app.config import Settings, load_settings
 from app.jobs import JobRunner
 from app.llm import LLM, BedrockLLM
 from app.render import Renderer, make_renderer
-from app.routes import projects, scenes
+from app.routes import projects, scenes, voice
 from app.store import ProjectNotFound, ProjectStore, SceneNotFound
+from app.tts import CachedTTS, ElevenLabsTTS, TTSProvider
 
 
-def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer | None = None) -> FastAPI:
+def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer | None = None,
+               tts: TTSProvider | None = None) -> FastAPI:
     store = ProjectStore(settings.data_dir)
 
     @asynccontextmanager
@@ -31,6 +33,8 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     app.state.store = store
     app.state.llm = llm or BedrockLLM(settings)
     app.state.renderer = renderer or make_renderer(settings)
+    app.state.tts = tts or CachedTTS(ElevenLabsTTS(settings.elevenlabs_api_key, settings.elevenlabs_voice_id),
+                                     settings.data_dir / "tts_cache")
     app.state.jobs = JobRunner()
 
     @app.exception_handler(ProjectNotFound)
@@ -47,6 +51,7 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
 
     app.include_router(projects.router)
     app.include_router(scenes.router)
+    app.include_router(voice.router)
     return app
 
 
