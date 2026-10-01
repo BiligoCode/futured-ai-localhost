@@ -19,6 +19,13 @@ def mp3_bytes() -> bytes:
     return ffmpeg_bytes("-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-f", "mp3", "pipe:1")
 
 
+@pytest.fixture(scope="session")
+def webm_no_duration() -> bytes:
+    # Writing to a pipe makes ffmpeg omit duration/cues, like Chrome's MediaRecorder output.
+    return ffmpeg_bytes("-f", "lavfi", "-i", "sine=frequency=300:duration=1.5", "-c:a", "libopus",
+                        "-f", "webm", "pipe:1")
+
+
 def api_client(app) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
 

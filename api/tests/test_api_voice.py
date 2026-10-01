@@ -1,6 +1,7 @@
 import pytest
 
 from app.main import create_app
+from app.media import MediaError, probe_duration
 from app.models import SceneDraft
 from app.render import RenderResult
 from tests.conftest import api_client, make_settings
@@ -77,6 +78,54 @@ async def test_narration_edit_keeps_professor_audio(tmp_path):
         await c.patch(f"/projects/{pid}/scenes/{sids[0]}", json={"narration": "Νέο"})
     s = scene(app, pid, sids[0])
     assert (s.audio_source, s.audio_status) == ("professor", "done")
+
+
+def recording(data: bytes):
+    return {"file": ("take.webm", data, "audio/webm")}
+
+
+@pytest.mark.slow
+async def test_recording_without_duration_metadata(tmp_path, webm_no_duration):
+    no_meta = tmp_path / "raw.webm"
+    no_meta.write_bytes(webm_no_duration)
+    with pytest.raises(MediaError):
+        probe_duration(no_meta)  # proves the fixture really lacks duration metadata
+    app, pid, sids = make_app(tmp_path, FakeTTS(b""))
+    async with api_client(app) as c:
+        r = await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/recording", files=recording(webm_no_duration))
+    assert r.status_code == 200
+    s = scene(app, pid, sids[0])
+    assert (s.audio_source, s.audio_status) == ("professor", "done")
+    d = app.state.store.scene_dir(pid, sids[0])
+    assert abs(probe_duration(d / "audio.wav") - 1.5) < 0.15
+    assert (d / "voice.webm").exists()
+
+
+@pytest.mark.slow
+async def test_bad_recording_keeps_previous_audio(tmp_path, mp3_bytes):
+    app, pid, sids = make_app(tmp_path, FakeTTS(mp3_bytes))
+    async with api_client(app) as c:
+        await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/ai")
+        wav = app.state.store.scene_dir(pid, sids[0]) / "audio.wav"
+        before = wav.read_bytes()
+        r = await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/recording", files=recording(b"junk"))
+    assert r.status_code == 422 and r.json()["detail"] == "Could not read the recording"
+    s = scene(app, pid, sids[0])
+    assert (s.audio_source, s.audio_status) == ("ai", "done")
+    assert wav.read_bytes() == before
+
+
+@pytest.mark.slow
+async def test_clear_voice(tmp_path, webm_no_duration):
+    app, pid, sids = make_app(tmp_path, FakeTTS(b""))
+    async with api_client(app) as c:
+        await c.post(f"/projects/{pid}/scenes/{sids[0]}/voice/recording", files=recording(webm_no_duration))
+        r = await c.delete(f"/projects/{pid}/scenes/{sids[0]}/voice")
+    assert r.status_code == 200
+    s = scene(app, pid, sids[0])
+    assert (s.audio_source, s.audio_status) == (None, "none")
+    d = app.state.store.scene_dir(pid, sids[0])
+    assert not (d / "audio.wav").exists() and not (d / "voice.webm").exists()
 
 
 async def test_narration_empty_422(tmp_path):

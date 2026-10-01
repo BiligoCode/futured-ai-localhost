@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.media import MediaError
 from app.models import NarrationUpdate, Project
 from app.tts import TTSError
-from app.voice import AUDIO_FILE, generate_ai_voice
+from app.voice import AUDIO_FILE, attach_recording, clear_voice, generate_ai_voice
 
 router = APIRouter()
 
@@ -27,6 +27,21 @@ async def ai_voice_all(project_id: str, request: Request) -> Project:
     for scene in request.app.state.store.get(project_id).scenes:
         if scene.audio_status in ("none", "failed"):
             await _ai_voice(request, project_id, scene.id)
+    return request.app.state.store.get(project_id)
+
+
+@router.post("/projects/{project_id}/scenes/{scene_id}/voice/recording")
+async def upload_recording(project_id: str, scene_id: str, request: Request, file: UploadFile = File()) -> Project:
+    try:
+        await attach_recording(request.app.state.store, project_id, scene_id, await file.read())
+    except MediaError as exc:
+        raise HTTPException(422, "Could not read the recording") from exc
+    return request.app.state.store.get(project_id)
+
+
+@router.delete("/projects/{project_id}/scenes/{scene_id}/voice")
+async def delete_voice(project_id: str, scene_id: str, request: Request) -> Project:
+    await clear_voice(request.app.state.store, project_id, scene_id)
     return request.app.state.store.get(project_id)
 
 
