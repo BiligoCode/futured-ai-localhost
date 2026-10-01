@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -26,7 +27,10 @@ class RenderResult:
 Renderer = Callable[[Path, Path], Awaitable[RenderResult]]
 
 
-def _kill_group(proc: asyncio.subprocess.Process) -> None:
+def _kill_group(proc: subprocess.Popen) -> None:
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        return
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except ProcessLookupError:
@@ -38,14 +42,18 @@ async def render_scene(code_path: Path, output_path: Path, *, quality: str, time
         report = Path(tmp) / "layout.json"
         cmd = [sys.executable, str(RUNNER), "render", f"-q{quality}", "--format", "mp4", "--disable_caching",
                "--media_dir", tmp, "-o", "out", str(Path(code_path).resolve()), "GeneratedScene"]
-        proc = await asyncio.create_subprocess_exec(
-            *cmd, cwd=tmp, env={**os.environ, "LARA_LAYOUT_REPORT": str(report)},
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True)
+        # asyncio subprocesses aren't supported on Windows' selector loop (used by uvicorn --reload),
+        # so run a blocking Popen in a worker thread instead.
+        group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if sys.platform == "win32" \
+            else {"start_new_session": True}
+        proc = subprocess.Popen(
+            cmd, cwd=tmp, env={**os.environ, "LARA_LAYOUT_REPORT": str(report)},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **group)
         try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout_s)
+            stdout, _ = await asyncio.wait_for(asyncio.to_thread(proc.communicate), timeout_s)
         except asyncio.TimeoutError:
             _kill_group(proc)
-            await proc.wait()
+            await asyncio.to_thread(proc.wait)
             return RenderResult(ok=False, error=f"Render timed out after {timeout_s}s")
         except asyncio.CancelledError:
             _kill_group(proc)
