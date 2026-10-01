@@ -8,7 +8,7 @@ from app.config import Settings, load_settings
 from app.jobs import JobRunner
 from app.llm import LLM, BedrockLLM
 from app.render import Renderer, make_renderer
-from app.routes import projects, scenes, voice
+from app.routes import export, projects, scenes, voice
 from app.store import ProjectNotFound, ProjectStore, SceneNotFound
 from app.tts import CachedTTS, ElevenLabsTTS, TTSProvider
 
@@ -52,6 +52,7 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     app.include_router(projects.router)
     app.include_router(scenes.router)
     app.include_router(voice.router)
+    app.include_router(export.router)
     return app
 
 

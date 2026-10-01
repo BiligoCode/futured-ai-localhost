@@ -1,5 +1,6 @@
 import dataclasses
 import io
+import json
 import subprocess
 from pathlib import Path
 
@@ -24,6 +25,29 @@ def webm_no_duration() -> bytes:
     # Writing to a pipe makes ffmpeg omit duration/cues, like Chrome's MediaRecorder output.
     return ffmpeg_bytes("-f", "lavfi", "-i", "sine=frequency=300:duration=1.5", "-c:a", "libopus",
                         "-f", "webm", "pipe:1")
+
+
+def make_clip(path: Path, seconds: float, size: str = "854x480", fps: int = 15) -> Path:
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=size={size}:rate={fps}:duration={seconds}",
+                    "-pix_fmt", "yuv420p", str(path)], check=True)
+    return path
+
+
+def make_wav(path: Path, seconds: float) -> Path:
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=frequency=500:duration={seconds}",
+                    "-ar", "44100", "-ac", "1", str(path)], check=True)
+    return path
+
+
+def probe(path: Path) -> dict:
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                          "format=duration:stream=codec_type,width,height,r_frame_rate", "-of", "json", str(path)],
+                         capture_output=True, text=True, check=True).stdout
+    info = json.loads(out)
+    video = next(s for s in info["streams"] if s["codec_type"] == "video")
+    num, den = video["r_frame_rate"].split("/")
+    return {"duration": float(info["format"]["duration"]), "width": video["width"], "height": video["height"],
+            "fps": round(int(num) / int(den)), "has_audio": any(s["codec_type"] == "audio" for s in info["streams"])}
 
 
 def api_client(app) -> httpx.AsyncClient:
