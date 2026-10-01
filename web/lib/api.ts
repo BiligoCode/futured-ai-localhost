@@ -51,3 +51,10 @@ export const createProject = (form: FormData) => request<Project>("/projects", {
 export const saveStoryboard = (id: string, scenes: SceneDraft[]) =>
   request<Project>(`/projects/${id}/storyboard`, json("PUT", { scenes }));
 export const startRender = (id: string) => request<Project>(`/projects/${id}/render`, { method: "POST" });
+export const retryScene = (id: string, sid: string) =>
+  request<Project>(`/projects/${id}/scenes/${sid}/retry`, { method: "POST" });
+export const reviseScene = (id: string, sid: string, instruction: string) =>
+  request<Project>(`/projects/${id}/scenes/${sid}/revise`, json("POST", { instruction }));
+export const getSceneCode = (id: string, sid: string) => request<string>(`/projects/${id}/scenes/${sid}/code`);
+export const videoUrl = (id: string, sid: string, version: number) =>
+  `${API_URL}/projects/${id}/scenes/${sid}/video?v=${version}`;
