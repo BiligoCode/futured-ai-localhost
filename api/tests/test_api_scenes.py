@@ -132,7 +132,7 @@ async def test_retry_failed_scene(tmp_path):
 def test_startup_recovers_interrupted(tmp_path):
     settings = make_settings(tmp_path)
     store = ProjectStore(settings.data_dir)
-    p = store.create(title="t", concept="c", style="", tone="", language="en", material_text="m",
+    p = store.create(title="t", concept="c", style="", language="en", material_text="m",
                      scenes=[SceneDraft(title="A", visual="v", narration="n")])
     asyncio.run(store.update_scene(p.id, p.scenes[0].id, render_status="rendering"))
     with TestClient(create_app(settings, llm=ScriptedLLM([]), renderer=FakeRenderer([OK]))):

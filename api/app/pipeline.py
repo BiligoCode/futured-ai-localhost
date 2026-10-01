@@ -3,14 +3,16 @@ import logging
 import re
 from pathlib import Path
 
-from app.codegen import MAX_REPAIRS, generate_code, precheck, repair_code, revise_code
+from app.codegen import MAX_REPAIRS, fix_layout, generate_code, precheck, repair_code, revise_code
 from app.llm import LLM
+from app.models import Project
 from app.render import Renderer
 from app.store import ProjectStore
 
 log = logging.getLogger(__name__)
 
 _CODE_FILE = re.compile(r"code_v(\d+)\.py$")
+MAX_LAYOUT_FIXES = 2
 
 
 def _next_version(scene_dir: Path) -> int:
@@ -20,7 +22,11 @@ def _next_version(scene_dir: Path) -> int:
 
 async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project_id: str, scene_id: str,
                       *, instruction: str | None = None) -> None:
-    """Generate (or revise) a scene's Manim code, render it, and self-repair on failure. Never raises."""
+    """Generate (or revise) a scene's Manim code, render it, and repair it until it renders with a clean layout.
+
+    Crashes and layout problems (overlapping or cut-off text, reported by the renderer) are both sent back to the
+    model. If the layout cannot be fixed within budget, the render with the fewest problems is kept. Never raises.
+    """
     try:
         await store.update_scene(project_id, scene_id, render_status="generating", attempts=0, last_error=None)
         project = store.get(project_id)
@@ -37,7 +43,10 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
                                            language=language)
 
         error = ""
-        for attempt in range(1, MAX_REPAIRS + 2):
+        repairs = layout_fixes = attempt = 0
+        best: tuple[int, int, list[str]] | None = None  # (issue count, version, issues) of the best render so far
+        while True:
+            attempt += 1
             version = _next_version(scene_dir)
             code_path = scene_dir / f"code_v{version}.py"
             code_path.write_text(code, encoding="utf-8")
@@ -48,14 +57,27 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
                 await store.update_scene(project_id, scene_id, render_status="rendering")
                 result = await renderer(code_path, scene_dir / f"render_v{version}.mp4")
                 if result.ok:
-                    await store.update_scene(project_id, scene_id, render_status="done",
-                                             code_version=version, last_error=None)
-                    return
+                    if best is None or len(result.issues) < best[0]:
+                        best = (len(result.issues), version, result.issues)
+                    if not result.issues or layout_fixes >= MAX_LAYOUT_FIXES:
+                        await _accept(store, project_id, scene_id, best[1], best[2])
+                        return
+                    layout_fixes += 1
+                    await store.update_scene(project_id, scene_id, render_status="repairing",
+                                             last_error="Layout: " + " ".join(result.issues))
+                    code = await asyncio.to_thread(fix_layout, llm, code, result.issues, language=language)
+                    continue
                 error = result.error
 
-            if attempt <= MAX_REPAIRS:
+            if repairs < MAX_REPAIRS:
+                repairs += 1
                 await store.update_scene(project_id, scene_id, render_status="repairing", last_error=error)
                 code = await asyncio.to_thread(repair_code, llm, code, error, language=language)
+                continue
+            if best is not None:  # a layout fix broke the code; the earlier render still stands
+                await _accept(store, project_id, scene_id, best[1], best[2])
+                return
+            break
 
         await _record_failure(store, project_id, scene_id, error)
     except Exception as exc:  # noqa: BLE001 - every failure must surface on the scene
@@ -64,6 +86,17 @@ async def build_scene(store: ProjectStore, llm: LLM, renderer: Renderer, project
             await _record_failure(store, project_id, scene_id, str(exc) or repr(exc))
         except Exception:  # noqa: BLE001
             log.exception("could not record failure for %s/%s", project_id, scene_id)
+
+
+async def _accept(store: ProjectStore, project_id: str, scene_id: str, version: int, issues: list[str]) -> None:
+    def apply(project: Project) -> None:
+        scene = project.scene(scene_id)
+        if scene.audio_source == "professor" and scene.audio_status == "done" and scene.code_version > 0:
+            scene.audio_stale = True  # the recording was made over the previous animation
+        scene.render_status, scene.code_version = "done", version
+        scene.last_error, scene.layout_issues = None, issues
+
+    await store.mutate(project_id, apply)
 
 
 async def _record_failure(store: ProjectStore, project_id: str, scene_id: str, error: str) -> None:

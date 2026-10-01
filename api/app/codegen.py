@@ -25,14 +25,26 @@ Rules:
 - Never write the narration as on-screen text: it is spoken by a voice. On screen show only short \
 titles, labels and formulas.
 - Keep text readable: titles `font_size=40` or larger, labels and formulas `font_size=30` or larger.
-- Keep every element inside the frame and never let text overlap: position with `.to_edge`, `.next_to`, \
-`.arrange`, scale long text with `.scale_to_fit_width(config.frame_width - 1)`, and `FadeOut` elements \
-you no longer need before adding new ones.
+- Layout (an automatic check rejects overlapping or cut-off text, so follow these exactly):
+  - Reserve zones: the title at the top (`.to_edge(UP)`), the main visual in the middle, one caption line at the \
+bottom (`.to_edge(DOWN)`). Formulas and side notes go in a corner or `.next_to` the visual, never on top of it.
+  - A label that belongs to a shape is placed on that shape: build each element as \
+`VGroup(box, Text(...).move_to(box))` (or `.next_to(box, DOWN)` for index labels). Never create a group of labels and \
+position the group as a whole: every `Text`, `MathTex` and number must be moved to its own place.
+  - Size labels to fit inside their shape (e.g. `label.scale_to_fit_width(box.width * 0.7)` when needed). \
+Wide rows (arrays, lists) must fit the frame: `.scale_to_fit_width(config.frame_width - 1)` if needed.
+  - One text per slot: before showing a new caption or status where another one is, use \
+`ReplacementTransform(old, new)` or `FadeOut(old)` first. Never `Write` a second text on an occupied spot.
+  - `FadeOut` elements you no longer need before adding new ones.
 - Use the current API: `Create` (not ShowCreation), `axes.plot` (not get_graph), `Axes(x_range=[...], \
 y_range=[...])`, `Text`/`MathTex` (not TextMobject/TexMobject), `Surface` (not ParametricSurface).
 - No external files, images, sounds, or network access.
 - The animation should last about the target duration; pad with `self.wait(...)` if needed.
 - Prefer clear, uncluttered visuals: one idea at a time, consistent colors, smooth transitions."""
+
+
+def _issue_list(issues: list[str]) -> str:
+    return "\n".join(f"- {issue}" for issue in issues)
 
 
 def target_seconds(narration: str) -> int:
@@ -67,7 +79,7 @@ def _scene_brief(scene: Scene) -> str:
 def generate_code(llm: LLM, scene: Scene, *, concept: str, style: str, material: str,
                   language: Language) -> str:
     user = (f"Concept being explained: {concept}\n"
-            f"Visual style requested by the professor: {style or 'clean and minimal'}\n\n"
+            f"Style and tone requested by the professor: {style or 'clean and minimal'}\n\n"
             f"{_scene_brief(scene)}\n\n"
             "Course material from the professor (reuse its notation, symbols and examples):\n<<<\n"
             f"{material[:CODEGEN_MATERIAL_CHARS]}\n>>>\n\n"
@@ -85,5 +97,17 @@ def repair_code(llm: LLM, code: str, error: str, *, language: Language) -> str:
 def revise_code(llm: LLM, code: str, scene: Scene, instruction: str, *, language: Language) -> str:
     user = (f"{_scene_brief(scene)}\n\nCurrent Manim file:\n```python\n{code}\n```\n\n"
             f"The professor asked for this change: {instruction}\n\n"
-            "Apply the change and return the full updated file.")
+            "Apply the change, keep the rest of the scene as it is, and return the full updated file.")
+    return _ask(llm, language, user)
+
+
+def fix_layout(llm: LLM, code: str, issues: list[str], *, language: Language) -> str:
+    user = (f"This Manim file renders, but an automatic layout check of the video found these problems:\n"
+            f"{_issue_list(issues)}\n\n```python\n{code}\n```\n\n"
+            "Fix every problem without changing what the animation explains: move each label onto its own shape "
+            "or position, replace or fade out old text before showing new text in the same place, and keep "
+            "everything inside the frame. For something cut off by the frame, place it relative to the edge "
+            "(`.to_edge(LEFT, buff=0.5)`, `.to_corner(...)`) or shrink it, instead of moving it to fixed "
+            "coordinates; check the target of every `.animate.move_to(...)` / `.shift(...)` too. "
+            "Return the full corrected file.")
     return _ask(llm, language, user)

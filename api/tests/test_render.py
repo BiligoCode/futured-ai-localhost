@@ -65,3 +65,58 @@ async def test_make_renderer_limits_concurrency(tmp_path, monkeypatch):
     r = render.make_renderer(make_settings(tmp_path, max_concurrent_renders=2))
     await asyncio.gather(*[r(tmp_path / f"{i}.py", tmp_path / f"{i}.mp4") for i in range(5)])
     assert peak == 2
+
+
+SCREENSHOT_BUG = scene_with("""values = [2, 5, 8, 12, 16, 23]
+        boxes = VGroup(*[Square(0.9) for _ in values]).arrange(RIGHT, buff=0.05)
+        nums = VGroup(*[Text(str(v), font="DejaVu Sans", font_size=30) for v in values])
+        self.play(Create(boxes), Write(nums))
+        self.play(Write(Text("Βρέθηκε στη θέση 5", font="DejaVu Sans").to_edge(DOWN)))
+        self.play(Write(Text("Βρέθηκε!", font="DejaVu Sans").to_edge(DOWN)))""")
+
+CLEAN_LAYOUT = scene_with("""cells = VGroup(*[VGroup(Square(0.9), Text(str(v), font="DejaVu Sans", font_size=30))
+                        for v in [2, 5, 8, 12, 16, 23]]).arrange(RIGHT, buff=0.05)
+        for c in cells:
+            c[1].move_to(c[0])
+        first = Text("Βρέθηκε στη θέση 5", font="DejaVu Sans").to_edge(DOWN)
+        self.play(Create(cells), Write(first))
+        self.play(ReplacementTransform(first, Text("Βρέθηκε!", font="DejaVu Sans").to_edge(DOWN)))""")
+
+
+@pytest.mark.slow
+async def test_layout_check_reports_stacked_labels_and_captions(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(SCREENSHOT_BUG, encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    assert r.ok, r.error
+    assert len(r.issues) == 2
+    assert "6 texts are drawn on top of each other" in r.issues[0]
+    assert 'Text "Βρέθηκε στη θέση 5"' in r.issues[1] and 'Text "Βρέθηκε!"' in r.issues[1]
+
+
+@pytest.mark.slow
+async def test_layout_check_passes_clean_scene(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(CLEAN_LAYOUT, encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    assert r.ok and r.issues == []
+
+
+@pytest.mark.slow
+async def test_layout_check_flags_tiny_text_but_not_short_glyphs(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(scene_with("""self.play(Write(MathTex("=", font_size=36).shift(UP)))
+        self.play(Write(Text("tiny", font="DejaVu Sans", font_size=30).scale(0.3).shift(DOWN)))"""),
+                    encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    assert r.ok and r.issues == ['At 2.0s: Text "tiny" is too small to read.']
+
+
+@pytest.mark.slow
+async def test_layout_check_reports_where_cut_off_text_is(tmp_path):
+    code = tmp_path / "code_v1.py"
+    code.write_text(scene_with('self.play(Write(Text("Πολυπλοκότητα", font="DejaVu Sans").move_to(LEFT * 6)))'),
+                    encoding="utf-8")
+    r = await render_scene(code, tmp_path / "render_v1.mp4", quality="l", timeout_s=180)
+    [issue] = r.issues
+    assert "cut off by the edge of the frame: it spans x -" in issue and "visible frame is x -7.11..7.11" in issue

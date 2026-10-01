@@ -62,7 +62,7 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
   return (
     <div className="space-y-4">
       <p className="text-slate-600">
-        Review the AI&apos;s storyboard. Edit what appears on screen and what is said, reorder or remove scenes. Nothing is rendered until you approve.
+        Review the script for your video. Edit what appears on screen and what is said, reorder or remove parts. Nothing is animated until you approve; after that you only see the finished video.
       </p>
 
       <ol className="space-y-4">
@@ -71,16 +71,16 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
             <div className="mb-3 flex items-center gap-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700">{i + 1}</span>
               <input
-                aria-label={`Scene ${i + 1} title`}
+                aria-label={`Part ${i + 1} title`}
                 value={d.title}
                 onChange={(e) => update(i, { title: e.target.value })}
                 className={field + " font-medium"}
-                placeholder="Scene title"
+                placeholder="Part title"
               />
               <div className="flex shrink-0 gap-1">
                 <button type="button" className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">↑</button>
                 <button type="button" className={iconBtn} onClick={() => move(i, 1)} disabled={i === drafts.length - 1} aria-label="Move down">↓</button>
-                <button type="button" className={iconBtn + " hover:text-red-600"} onClick={() => remove(i)} aria-label="Delete scene">✕</button>
+                <button type="button" className={iconBtn + " hover:text-red-600"} onClick={() => remove(i)} aria-label="Delete part">✕</button>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -98,19 +98,19 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
       </ol>
 
       <button type="button" onClick={add} className="w-full rounded-xl border border-dashed border-slate-300 py-3 text-sm text-slate-600 hover:bg-white">
-        + Add scene
+        + Add part
       </button>
 
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50/95 py-4">
         {savedAt && <span className="text-sm text-slate-500">Saved at {savedAt}</span>}
-        {incomplete && <span className="text-sm text-amber-700">Every scene needs a title, visual and narration.</span>}
+        {incomplete && <span className="text-sm text-amber-700">Every part needs a title, what is on screen, and narration.</span>}
         <button type="button" onClick={() => run("save")} disabled={!!saving || incomplete} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium hover:bg-slate-100 disabled:opacity-50">
           {saving === "save" ? "Saving…" : "Save"}
         </button>
         <button type="button" onClick={() => run("render")} disabled={!!saving || incomplete} className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-          {saving === "render" ? "Starting…" : "Approve & render"}
+          {saving === "render" ? "Starting…" : "Approve & create video"}
         </button>
       </div>
     </div>

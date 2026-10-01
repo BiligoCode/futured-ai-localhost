@@ -9,7 +9,15 @@ const POLL_MS = 2000;
 const BUSY_RENDER = new Set(["generating", "rendering", "repairing"]);
 
 export function isBusy(project: Project | null): boolean {
-  return !!project?.scenes.some((s) => BUSY_RENDER.has(s.render_status) || s.audio_status === "generating");
+  if (!project) return false;
+  const cutPending = (["preview", "final"] as const).some(
+    (k) => project[k].status === "building" || (project[`${k}_outdated`] && project[k].status !== "failed"),
+  );
+  return (
+    cutPending ||
+    project.narrating ||
+    project.scenes.some((s) => BUSY_RENDER.has(s.render_status) || s.audio_status === "generating")
+  );
 }
 
 export function useProject(id: string) {

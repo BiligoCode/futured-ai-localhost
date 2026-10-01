@@ -38,4 +38,5 @@ def load_settings(env_file: Path | None = None) -> Settings:
         elevenlabs_api_key=_env("ELEVENLABS_API_KEY"),
         elevenlabs_voice_id=_env("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"),
         render_quality=_env("RENDER_QUALITY", "m"),
+        cors_origins=tuple(o.strip() for o in _env("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()),
     )

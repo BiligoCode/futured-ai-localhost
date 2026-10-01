@@ -27,3 +27,23 @@ async def test_exception_frees_key():
     j.submit("k", boom)
     await j.wait_all()
     assert not j.is_running("k")
+
+
+async def test_submit_coalesced_reruns_once_after_running_job():
+    runs = 0
+    gate = asyncio.Event()
+
+    async def job():
+        nonlocal runs
+        runs += 1
+        if runs == 1:
+            await gate.wait()
+
+    j = JobRunner()
+    j.submit_coalesced("k", job)
+    await asyncio.sleep(0)
+    j.submit_coalesced("k", job)
+    j.submit_coalesced("k", job)
+    gate.set()
+    await j.wait_all()
+    assert runs == 2

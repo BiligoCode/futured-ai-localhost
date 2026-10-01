@@ -9,6 +9,7 @@ from app.jobs import JobRunner
 from app.llm import LLM, BedrockLLM
 from app.render import Renderer, make_renderer
 from app.routes import export, projects, scenes, voice
+from app.routes.common import schedule_refresh
 from app.store import ProjectNotFound, ProjectStore, SceneNotFound
 from app.tts import CachedTTS, ElevenLabsTTS, TTSProvider
 
@@ -20,9 +21,13 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         store.recover_interrupted()
+        # Projects made before videos were composed (or interrupted mid-compose) get their videos built now.
+        for project in store.list():
+            if project.preview_outdated or project.final_outdated:
+                await schedule_refresh(app, project.id)
         yield
 
-    app = FastAPI(title="Educator Visual Explanations API", lifespan=lifespan)
+    app = FastAPI(title="Lara API", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
