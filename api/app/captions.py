@@ -1,11 +1,13 @@
 """Captions for AI-narrated scenes: timed cues from the TTS character alignment, rendered as an ASS file that
 ffmpeg burns into the bottom strip of the video (which the animations keep free)."""
+import re
 from dataclasses import asdict, dataclass
 
 LINE_CHARS = 42      # per caption line
 MAX_LINES = 2
 MAX_CUE_S = 6.0
 SENTENCE_END = (".", "!", "?", ";", ":", "…")  # ";" is the Greek question mark
+_ABBREVIATION = re.compile(r"^\(?(?:\w\.){2,}\)?,?$|^(?:δηλ|κλπ|κ\.λπ|etc|vs)\.$", re.IGNORECASE)
 
 # 1280x720 canvas; two lines of 34 px text in an opaque box fit inside the reserved bottom strip (~117 px).
 ASS_HEADER = """[Script Info]
@@ -83,25 +85,41 @@ def _wrap(words: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _ends_sentence(word: str) -> bool:
+    # "π.χ." or "e.g." end with a dot but do not end the sentence.
+    return word.endswith(SENTENCE_END) and not _ABBREVIATION.match(word)
+
+
+def _fits(words: list[_Word]) -> bool:
+    return (len(_wrap([w.text for w in words]).split("\n")) <= MAX_LINES
+            and words[-1].end - words[0].start <= MAX_CUE_S)
+
+
+def _balanced(sentence: list[_Word]) -> list[list[_Word]]:
+    """Split a sentence into the fewest cues that fit, of similar length (no one-word leftovers)."""
+    for n in range(1, len(sentence) + 1):
+        target = sum(len(w.text) + 1 for w in sentence) / n
+        chunks, chunk, size = [], [], 0.0
+        for w in sentence:
+            if chunk and size + len(w.text) / 2 > target and len(chunks) < n - 1:
+                chunks.append(chunk)
+                chunk, size = [], 0.0
+            chunk.append(w)
+            size += len(w.text) + 1
+        chunks.append(chunk)
+        if all(_fits(c) for c in chunks):
+            return chunks
+    return [[w] for w in sentence]
+
+
 def _group(words: list[_Word]) -> list[Cue]:
-    cues: list[Cue] = []
-    group: list[_Word] = []
-
-    def flush() -> None:
-        if group:
-            cues.append(Cue(start=round(group[0].start, 3), end=round(group[-1].end, 3),
-                            text=_wrap([w.text for w in group])))
-            group.clear()
-
+    sentences: list[list[_Word]] = [[]]
     for word in words:
-        candidate = [w.text for w in group] + [word.text]
-        too_long = len(_wrap(candidate).split("\n")) > MAX_LINES or (group and word.end - group[0].start > MAX_CUE_S)
-        if group and too_long:
-            flush()
-        group.append(word)
-        if word.text.endswith(SENTENCE_END):
-            flush()
-    flush()
+        sentences[-1].append(word)
+        if _ends_sentence(word.text):
+            sentences.append([])
+    cues = [Cue(start=round(c[0].start, 3), end=round(c[-1].end, 3), text=_wrap([w.text for w in c]))
+            for sentence in sentences if sentence for c in _balanced(sentence)]
     # Keep each cue on screen until the next one starts (no flicker between words).
     for a, b in zip(cues, cues[1:]):
         a.end = max(a.end, min(b.start, a.end + 1.0))

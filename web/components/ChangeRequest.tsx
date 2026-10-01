@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { reviseVideo } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { clock } from "@/lib/time";
 import type { CutKind, EditSummary, Project } from "@/lib/types";
 
@@ -16,6 +17,7 @@ export function ChangeRequest({ project, cut, playerAt, onClearPlayerAt, onChang
   onClearPlayerAt: () => void;
   onChange: (p: Project) => void;
 }) {
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +45,9 @@ export function ChangeRequest({ project, cut, playerAt, onClearPlayerAt, onChang
     <section className="panel space-y-4 p-5 sm:p-6" aria-labelledby="change-heading">
       <div>
         <h2 id="change-heading" className="font-serif text-2xl font-semibold">
-          Ask for a change
+          {t.askChange}
         </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Describe it the way you would to a colleague: what happens on screen, what is said, or a time in the video. Lara finds the right moment and changes only that.
-        </p>
+        <p className="mt-1 max-w-2xl text-sm text-muted">{t.askChangeIntro}</p>
       </div>
       <form onSubmit={submit} className="rounded-xl border border-rule-strong bg-surface transition-[border-color,box-shadow] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_22%,transparent)]">
         <textarea
@@ -57,8 +57,8 @@ export function ChangeRequest({ project, cut, playerAt, onClearPlayerAt, onChang
           rows={3}
           disabled={sending}
           autoComplete="off"
-          aria-label="Describe a change to the video"
-          placeholder={"e.g. “When the array gets iterated, move the pointer more slowly”\nor “At 0:32 explain why we split the array in half”"}
+          aria-label={t.describeChange}
+          placeholder={t.changePlaceholder}
           className="block w-full resize-y rounded-t-xl bg-transparent px-4 pt-3 pb-2 font-serif text-lg leading-relaxed placeholder:text-faint focus-visible:outline-none disabled:opacity-60"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
@@ -68,20 +68,20 @@ export function ChangeRequest({ project, cut, playerAt, onClearPlayerAt, onChang
           {playerAt !== null && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft py-1 pr-1 pl-2.5 text-xs font-semibold text-accent tabular-nums">
               <Icon name="pin" size={14} />
-              At {clock(playerAt)} in the video
+              {t.atTime(clock(playerAt))}
               <button
                 type="button"
                 onClick={onClearPlayerAt}
                 className="grid h-5 w-5 place-items-center rounded-full hover:bg-accent hover:text-white"
-                aria-label="Don’t use the player position"
+                aria-label={t.dontUsePosition}
               >
                 <Icon name="close" size={12} />
               </button>
             </span>
           )}
-          <span className="hidden flex-1 text-right text-xs text-faint sm:block">Ctrl&nbsp;+&nbsp;Enter to send</span>
+          <span className="hidden flex-1 text-right text-xs text-faint sm:block">{t.ctrlEnter}</span>
           <button type="submit" disabled={sending || !text.trim()} className="btn btn-primary ml-auto sm:ml-0">
-            {sending ? "Finding the right moment…" : "Make this change"}
+            {sending ? t.finding : t.makeChange}
           </button>
         </div>
       </form>
@@ -101,7 +101,7 @@ export function ChangeRequest({ project, cut, playerAt, onClearPlayerAt, onChang
                 <span className="min-w-0 break-words">
                   {e.summary}
                   <span className="ml-2 text-xs text-muted">
-                    {[e.animation && "animation", e.narration && "narration"].filter(Boolean).join(" & ")}
+                    {[e.animation && t.kindAnimation, e.narration && t.kindNarration].filter(Boolean).join(" & ")}
                   </span>
                 </span>
               </li>

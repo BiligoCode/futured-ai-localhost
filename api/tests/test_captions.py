@@ -34,3 +34,11 @@ def test_ass_output():
     ass = to_ass(cues_from_text("Γεια {σας}.", 1.5))
     assert "Style: Caption,DejaVu Sans" in ass
     assert "Dialogue: 0,0:00:00.00,0:00:01.50,Caption,,0,0,0,,Γεια (σας)." in ass
+
+
+def test_no_one_word_leftovers_and_abbreviations_do_not_end_cues():
+    text = ("Φτιάχνουμε πίνακα dp, όπου το dp αποθηκεύει το ελάχιστο πλήθος νομισμάτων για το ποσό i. "
+            "Χρειαζόμαστε δύο νομίσματα, π.χ. 3 συν 3.")
+    cues = cues_from_alignment(alignment_for(text, 0.03))
+    assert min(len(c.text.split()) for c in cues) >= 3, [c.text for c in cues]
+    assert any("π.χ. 3 συν 3." in c.text.replace("\n", " ") for c in cues)

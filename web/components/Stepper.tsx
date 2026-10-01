@@ -1,10 +1,14 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n";
+
 import { Icon } from "./Icon";
 
-const STEPS = ["Setup", "Script", "Animation", "Review & narrate"] as const;
-
 export function Stepper({ current }: { current: 1 | 2 | 3 | 4 }) {
+  const { t } = useI18n();
+  const STEPS = t.steps;
   return (
-    <nav aria-label="Progress">
+    <nav aria-label={t.progress}>
       <ol className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         {STEPS.map((label, i) => {
           const n = i + 1;
@@ -26,7 +30,7 @@ export function Stepper({ current }: { current: 1 | 2 | 3 | 4 }) {
                 </span>
                 <span className={state === "todo" ? "text-muted" : state === "current" ? "font-semibold" : "text-ink"}>
                   {label}
-                  {state === "done" && <span className="sr-only"> (done)</span>}
+                  {state === "done" && <span className="sr-only"> {t.stepDone}</span>}
                 </span>
               </span>
               {n < STEPS.length && (

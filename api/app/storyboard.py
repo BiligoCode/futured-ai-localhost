@@ -29,6 +29,8 @@ background only where the concept cannot be understood without it, and keep it t
 - Build the explanation on one concrete worked example, taken from the course material when it has one (its \
 numbers, notation, definitions, recurrences, pseudocode). Otherwise construct one small enough to show completely. \
 Carry the same example through the scenes so the student watches the method run step by step to the result.
+- Get the example right: check every value, step and result you show (e.g. that each sum uses only the given \
+coins, that each table cell follows the recurrence). The professor will show this to students.
 - Use everything in the material that concerns this concept: definitions, the key idea, the recurrence or \
 formula, how the algorithm or proof proceeds, correctness or invariants, complexity, edge cases and typical \
 mistakes. Leave out what does not concern it.
@@ -64,6 +66,8 @@ def language_name(language: Language) -> str:
 
 _GREEK = re.compile(r"[\u0370-\u03ff\u1f00-\u1fff]")
 _LATIN = re.compile(r"[A-Za-z]")
+# Letters of other scripts (Cyrillic, Armenian, Hebrew, Arabic, CJK, ...) that models sometimes slip in.
+_OTHER_SCRIPT = re.compile(r"[\u0400-\u052f\u0530-\u08ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
 
 
 def greek_share(texts: list[str]) -> float:
@@ -76,6 +80,10 @@ def check_language(texts: list[str], language: Language) -> None:
     """The selected language is the only source of truth: reject text written in the other one.
 
     Greek text may contain Latin notation (O(n), dp[i], code), so it only has to be mostly Greek."""
+    foreign = sorted({w for t in texts for w in t.split() if _OTHER_SCRIPT.search(w)})
+    if foreign:
+        raise ValueError(f"these words are in neither {language_name(language)} nor standard notation: "
+                         f"{', '.join(foreign[:8])}; write them in {language_name(language)}")
     share = greek_share(texts)
     if language == "el" and share < 0.6:
         raise ValueError("the text must be written in Greek (it is mostly in another language); translate it")

@@ -5,16 +5,18 @@ import { useEffect, useState } from "react";
 
 import { CurveSketch } from "@/components/Stage";
 import { cutUrl, listProjects } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+import type { Messages } from "@/lib/messages";
 import { clock } from "@/lib/time";
 import type { Project } from "@/lib/types";
 
 type Status = { label: string; tone: "draft" | "busy" | "ready" | "done" };
 
-function statusOf(p: Project): Status {
-  if (p.stage === "storyboard") return { label: "Script draft", tone: "draft" };
-  if (p.preview.version === 0) return { label: "Creating video…", tone: "busy" };
-  if (p.final.version > 0) return { label: "Narrated", tone: "done" };
-  return { label: "Ready to narrate", tone: "ready" };
+function statusOf(p: Project, t: Messages): Status {
+  if (p.stage === "storyboard") return { label: t.statusDraft, tone: "draft" };
+  if (p.preview.version === 0) return { label: t.statusCreating, tone: "busy" };
+  if (p.final.version > 0) return { label: t.statusNarrated, tone: "done" };
+  return { label: t.statusReady, tone: "ready" };
 }
 
 const DOT = { draft: "bg-faint", busy: "bg-gold pulse-soft", ready: "bg-manim", done: "bg-accent" } as const;
@@ -37,7 +39,8 @@ function Poster({ p }: { p: Project }) {
 }
 
 function ProjectTile({ p }: { p: Project }) {
-  const status = statusOf(p);
+  const { t } = useI18n();
+  const status = statusOf(p, t);
   const hasVideo = p.stage !== "storyboard" && p.preview.version > 0;
   const duration = hasVideo ? p[p.final.version > 0 ? "final" : "preview"].duration : 0;
   return (
@@ -71,7 +74,7 @@ function ProjectTile({ p }: { p: Project }) {
             <h2 className="truncate font-serif text-xl leading-tight font-semibold group-hover:text-accent">{p.title}</h2>
             <p className="mt-0.5 truncate text-sm text-muted">{p.concept}</p>
           </div>
-          <span className="mt-1 shrink-0 text-xs font-semibold text-muted" title={p.language === "el" ? "Greek" : "English"}>
+          <span className="mt-1 shrink-0 text-xs font-semibold text-muted" title={t.langName[p.language]}>
             {p.language === "el" ? "ΕΛ" : "EN"}
           </span>
         </div>
@@ -85,6 +88,7 @@ function ProjectTile({ p }: { p: Project }) {
 }
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,30 +101,28 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">Your explanations</h1>
-        <p className="mt-2 text-lg text-muted">Animated, narrated explanations built from your own course material.</p>
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourExplanations}</h1>
+        <p className="mt-2 text-lg text-muted">{t.dashSubtitle}</p>
       </div>
 
       {error && (
         <p className="notice notice-error" role="alert">
-          Could not load your explanations: {error}. Check that the Lara API is running, then reload the page.
+          {t.loadError(error)}
         </p>
       )}
       {!projects && !error && (
         <p className="text-muted" aria-live="polite">
-          Loading…
+          {t.loading}
         </p>
       )}
 
       {projects?.length === 0 && (
         <div className="stage stage-grid grid gap-8 rounded-2xl px-6 py-12 sm:grid-cols-[1fr_minmax(0,22rem)] sm:items-center sm:px-12">
           <div className="max-w-md space-y-4">
-            <h2 className="font-serif text-3xl leading-tight font-semibold">Start with one concept you teach.</h2>
-            <p className="text-stage-muted">
-              Upload your lecture notes and name the idea. Lara drafts a script you can edit, then animates and narrates it.
-            </p>
+            <h2 className="font-serif text-3xl leading-tight font-semibold">{t.emptyTitle}</h2>
+            <p className="text-stage-muted">{t.emptyBody}</p>
             <Link href="/new" className="btn btn-primary">
-              Create your first explanation
+              {t.createFirst}
             </Link>
           </div>
           <CurveSketch className="w-full" />

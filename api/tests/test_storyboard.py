@@ -62,3 +62,10 @@ def test_english_selected_rejects_greek_draft():
 def test_greek_with_notation_counts_as_greek():
     from app.storyboard import check_language
     check_language(["Η πολυπλοκότητα είναι O(n log n) και ο πίνακας dp[i] γεμίζει από αριστερά"], "el")
+
+
+def test_words_from_other_scripts_are_rejected():
+    import pytest as _pytest
+    from app.storyboard import check_language
+    with _pytest.raises(ValueError, match="плюс"):
+        check_language(["Το dp[i] γίνεται 1 плюс το ελάχιστο dp[i-c]."], "el")

@@ -1,3 +1,4 @@
+import { LANG_COOKIE, MESSAGES, parseLang } from "./messages";
 import type { CutKind, Hold, Project, ReviseResult, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -11,20 +12,28 @@ export class ApiError extends Error {
   }
 }
 
+/** The interface language, read from the cookie the language switch writes (the server translates its errors). */
+function uiLang() {
+  if (typeof document === "undefined") return parseLang(null);
+  return parseLang(document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=([^;]*)`))?.[1]);
+}
+
 function describe(detail: unknown): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     return detail.map((d) => (d && typeof d === "object" && "msg" in d ? String(d.msg) : String(d))).join("; ");
   }
-  return "Something went wrong";
+  return MESSAGES[uiLang()].somethingWrong;
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, init);
+    const headers = new Headers(init?.headers);
+    headers.set("X-Lara-Lang", uiLang());
+    res = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError(0, "Cannot reach the server. Is the API running?");
+    throw new ApiError(0, MESSAGES[uiLang()].cannotReach);
   }
   if (!res.ok) {
     let detail: unknown = res.statusText;
@@ -58,6 +67,8 @@ export const reviseVideo = (id: string, instruction: string, cut: CutKind, atSec
 
 export const generateAiNarration = (id: string) => request<Project>(`/projects/${id}/narration/ai`, { method: "POST" });
 export const removeNarration = (id: string) => request<Project>(`/projects/${id}/narration`, { method: "DELETE" });
+export const setCaptions = (id: string, captions: boolean) =>
+  request<Project>(`/projects/${id}/settings`, json("PATCH", { captions }));
 export function uploadTake(id: string, blob: Blob, fromScene: string, holds: Hold[]) {
   const form = new FormData();
   form.append("file", blob, "take.webm");

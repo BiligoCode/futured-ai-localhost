@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { saveStoryboard, startRender } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { Project, SceneDraft } from "@/lib/types";
 
 import { Icon } from "./Icon";
@@ -13,9 +14,9 @@ let keySeq = 0;
 const toDrafts = (p: Project): Draft[] =>
   p.scenes.map((s) => ({ key: s.id, id: s.id, title: s.title, visual: s.visual, narration: s.narration }));
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-
 export function StoryboardEditor({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
+  const { lang, t } = useI18n();
+  const timeFormat = new Intl.DateTimeFormat(lang === "el" ? "el-GR" : "en-GB", { hour: "numeric", minute: "2-digit" });
   const [drafts, setDrafts] = useState<Draft[]>(() => toDrafts(project));
   const [saving, setSaving] = useState<"save" | "render" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +84,7 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
 
   return (
     <div className="space-y-6">
-      <p className="max-w-3xl text-muted">
-        Review the script for your video. Edit what appears on screen and what is said, reorder or remove parts. Nothing is
-        animated until you approve; after that you only see the finished video.
-      </p>
+      <p className="max-w-3xl text-muted">{t.scriptIntro}</p>
 
       <ol className="panel divide-y divide-rule">
         {drafts.map((d, i) => (
@@ -97,15 +95,15 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
             <div className="min-w-0 space-y-4">
               <div className="flex items-center gap-2">
                 <input
-                  aria-label={`Part ${i + 1} title`}
+                  aria-label={t.partTitle(i + 1)}
                   value={d.title}
                   onChange={(e) => update(i, { title: e.target.value })}
                   autoComplete="off"
                   className="field -ml-2 min-w-0 border-transparent bg-transparent px-2 py-1 font-serif text-2xl font-semibold hover:border-rule focus-visible:border-accent focus-visible:bg-surface"
-                  placeholder="Part title…"
+                  placeholder={t.partTitlePlaceholder}
                 />
                 <div className="flex shrink-0 gap-0.5">
-                  <button type="button" className="btn-icon" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move part ${i + 1} up`}>
+                  <button type="button" className="btn-icon" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t.moveUp(i + 1)}>
                     <Icon name="up" size={16} />
                   </button>
                   <button
@@ -113,18 +111,18 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
                     className="btn-icon"
                     onClick={() => move(i, 1)}
                     disabled={i === drafts.length - 1}
-                    aria-label={`Move part ${i + 1} down`}
+                    aria-label={t.moveDown(i + 1)}
                   >
                     <Icon name="down" size={16} />
                   </button>
-                  <button type="button" className="btn-icon hover:!text-rec" onClick={() => remove(i)} aria-label={`Delete part ${i + 1}`}>
+                  <button type="button" className="btn-icon hover:!text-rec" onClick={() => remove(i)} aria-label={t.deletePart(i + 1)}>
                     <Icon name="trash" size={16} />
                   </button>
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="label text-muted">On screen</span>
+                  <span className="label text-muted">{t.onScreen}</span>
                   <textarea
                     rows={4}
                     value={d.visual}
@@ -134,7 +132,7 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
                   />
                 </label>
                 <label className="block">
-                  <span className="label text-muted">Narration</span>
+                  <span className="label text-muted">{t.narration}</span>
                   <textarea
                     rows={4}
                     value={d.narration}
@@ -154,7 +152,7 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
             className="flex w-full items-center justify-center gap-2 rounded-b-[0.875rem] py-4 text-sm font-semibold text-accent hover:bg-accent-soft"
           >
             <Icon name="plus" size={16} />
-            Add part
+            {t.addPart}
           </button>
         </li>
       </ol>
@@ -162,9 +160,9 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
       <div aria-live="polite">
         {removed && (
           <p className="notice notice-info items-center">
-            <span className="flex-1">Removed “{removed.draft.title || "untitled part"}”.</span>
+            <span className="flex-1">{t.removedPart(removed.draft.title || t.untitledPart)}</span>
             <button type="button" onClick={undoRemove} className="font-semibold underline underline-offset-2">
-              Undo
+              {t.undo}
             </button>
           </p>
         )}
@@ -178,18 +176,18 @@ export function StoryboardEditor({ project, onChange }: { project: Project; onCh
       <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-paper/95 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6">
         <span className="mr-auto text-sm" aria-live="polite">
           {incomplete ? (
-            <span className="text-gold-ink">Every part needs a title, what is on screen, and narration.</span>
+            <span className="text-gold-ink">{t.incompleteParts}</span>
           ) : dirty ? (
-            <span className="text-muted">Unsaved changes</span>
+            <span className="text-muted">{t.unsaved}</span>
           ) : (
-            savedAt && <span className="text-muted">Saved at {savedAt}</span>
+            savedAt && <span className="text-muted">{t.savedAt(savedAt)}</span>
           )}
         </span>
         <button type="button" onClick={() => run("save")} disabled={!!saving || incomplete} className="btn btn-secondary">
-          {saving === "save" ? "Saving…" : "Save"}
+          {saving === "save" ? t.saving : t.save}
         </button>
         <button type="button" onClick={() => run("render")} disabled={!!saving || incomplete} className="btn btn-primary">
-          {saving === "render" ? "Starting…" : "Approve & create video"}
+          {saving === "render" ? t.starting : t.approve}
         </button>
       </div>
     </div>
