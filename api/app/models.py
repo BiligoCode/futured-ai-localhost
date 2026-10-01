@@ -104,6 +104,7 @@ class Project(BaseModel):
     final: Cut = Cut()    # the animation with its narration
     narrating: bool = False
     captions: bool = False  # burn captions into the parts narrated by the AI voice
+    deck_id: str | None = None  # the slides this animation was made from, if any
 
     def scene(self, scene_id: str) -> Scene:
         for s in self.scenes:
@@ -156,3 +157,118 @@ class ProjectSettings(BaseModel):
 class ReviseResult(BaseModel):
     project: Project
     edits: list[EditSummary]
+
+
+# --- Slides -----------------------------------------------------------------------------------------------------
+
+EditOp = Literal["replace", "insert_after", "delete", "move"]
+AnimationStatus = Literal["draft", "creating", "ready", "missing"]
+EmbedMode = Literal["append", "new_after", "new_end"]
+ExportFormat = Literal["pdf", "docx"]
+
+
+class DeckNotFound(KeyError):
+    pass
+
+
+class Slide(BaseModel):
+    id: str
+    html: str = ""  # sanitised fragment (app.slides_html whitelist)
+    video: str | None = None  # project_id of the embedded animation, shown below the text
+
+
+class EditLog(BaseModel):
+    """What an assistant message changed, for the chips under it."""
+    op: EditOp
+    slide_id: str
+    title: str = ""  # the slide's title at the time; "" shows as "Slide N"
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    edits: list[EditLog] = []
+    at: datetime
+
+
+class Deck(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    title: str
+    language: Language
+    slides: list[Slide]
+    chat: list[ChatMessage] = []  # the last 50 messages
+    version: int = 1  # +1 on every save; clients send it back to detect stale saves
+
+    def slide(self, slide_id: str) -> Slide:
+        for s in self.slides:
+            if s.id == slide_id:
+                return s
+        raise KeyError(slide_id)
+
+
+class AnimationRef(BaseModel):
+    """An animation linked to a deck (made from it or embedded in it); computed per response, never stored."""
+    project_id: str
+    title: str
+    status: AnimationStatus
+    cut: CutKind | None  # "final" when narrated, else "preview", None before the first video
+    version: int
+    signature: str = ""  # of the chosen cut, so the editor never plays a stale cached video
+    duration: float
+    embedded: bool
+
+
+class DeckView(Deck):
+    animations: list[AnimationRef]
+
+
+class DeckSummary(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    title: str
+    language: Language
+    slide_count: int
+    animation_count: int
+    first_slide_html: str
+
+
+class SlideIn(BaseModel):
+    id: str | None = None
+    html: str = ""
+    video: str | None = None
+
+
+class DeckUpdate(BaseModel):
+    title: str = Field(min_length=1)
+    slides: list[SlideIn] = Field(min_length=1)
+    version: int
+
+
+class DeckChatRequest(BaseModel):
+    message: str = Field(min_length=1)
+    slide_id: str | None = None
+    selection: str | None = Field(default=None, max_length=500)
+
+
+class DeckChatResult(BaseModel):
+    deck: DeckView
+    reply: str
+    edits: list[EditLog]
+
+
+class EmbedRequest(BaseModel):
+    project_id: str
+    slide_id: str | None = None
+    mode: EmbedMode
+
+
+class ExportRequest(BaseModel):
+    format: ExportFormat
+
+
+class ExportResult(BaseModel):
+    url: str
+    filename: str

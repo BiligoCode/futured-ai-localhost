@@ -116,3 +116,10 @@ def assemble(segments: list[tuple[Path, Path | None]], out: Path) -> None:
             encode_segment(Path(video), Path(audio) if audio else None, part)
             parts.append(part)
         concat(parts, out)
+
+
+def make_poster(video: Path, out: Path, at: float) -> None:
+    """One frame of `video` at `at` seconds as a 640px-wide JPEG (the still shown for an embedded animation)."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _run(["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(video), "-frames:v", "1",
+          "-vf", "scale=640:-2", "-q:v", "3", str(out)])

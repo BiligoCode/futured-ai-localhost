@@ -1,5 +1,7 @@
 # Lara Slides — documentation
 
+Status: **implemented** on branch `feat/slides` (October 2026).
+
 Everything about the **Slides** material type (AI-assisted 16:9 slide editor with a chat assistant, PDF/Word
 export, embedded Manim animations).
 

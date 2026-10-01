@@ -138,3 +138,21 @@ async def test_redraft_replaces_project_only_on_success(tmp_path):
         assert (await c.get(f"/projects/{old['id']}")).status_code == 404
         assert [p["id"] for p in (await c.get("/projects")).json()] == [r.json()["id"]]
         assert (await create(c, replaces="missing")).status_code == 404
+
+
+async def test_create_project_from_deck(tmp_path):
+    app, llm = make_app(tmp_path)
+    deck = app.state.decks.create(title="Δέντρα", language="el", material_text="")
+    async with api_client(app) as c:
+        r = await create(c, concept="BST", deck_id=deck.id, material_text="extra")
+        assert r.status_code == 200, r.text
+        p = r.json()
+        assert p["deck_id"] == deck.id
+        # The professor's own material stays theirs (it is what the setup form shows again); the deck's text is
+        # kept beside it and both reach the model.
+        assert (await c.get(f"/projects/{p['id']}/material")).text == "extra"
+        assert app.state.store.full_material(p["id"]).startswith("Lecture slides: Δέντρα\n\nSlide 1: Δέντρα")
+        assert app.state.store.full_material(p["id"]).endswith("\n\nextra")
+        assert (await c.get("/projects")).json()[0]["deck_id"] == deck.id
+        assert "Lecture slides: Δέντρα" in llm.calls[0][1][0]["content"] and "extra" in llm.calls[0][1][0]["content"]
+        assert (await create(c, concept="x", deck_id="nope")).status_code == 404

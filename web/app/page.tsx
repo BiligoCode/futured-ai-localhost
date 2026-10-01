@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { DeckTile } from "@/components/deck/DeckTile";
 import { Icon } from "@/components/Icon";
 import { CurveSketch } from "@/components/Stage";
-import { cutUrl, deleteProject, listProjects } from "@/lib/api";
+import { cutUrl, deleteDeck, deleteProject, listDecks, listProjects } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { Messages } from "@/lib/messages";
 import { clock } from "@/lib/time";
-import type { Project } from "@/lib/types";
+import type { DeckSummary, Project } from "@/lib/types";
+
+type Item = { kind: "project"; p: Project } | { kind: "deck"; d: DeckSummary };
 
 type Status = { label: string; tone: "draft" | "busy" | "ready" | "done" };
 
@@ -75,8 +78,14 @@ function ProjectTile({ p, onDelete }: { p: Project; onDelete: (p: Project) => vo
             <h2 className="truncate font-serif text-xl leading-tight font-semibold group-hover:text-accent">{p.title}</h2>
             <p className="mt-0.5 truncate text-sm text-muted">{p.concept}</p>
           </div>
-          <span className="mt-1 shrink-0 text-xs font-semibold text-muted" title={t.langName[p.language]}>
-            {p.language === "el" ? "ΕΛ" : "EN"}
+          <span className="mt-1 flex shrink-0 items-center gap-2 text-xs font-semibold text-muted">
+            {p.deck_id && (
+              <span className="inline-flex items-center gap-1 rounded bg-sunken px-1.5 py-0.5 text-ink" title={t.fromSlides}>
+                <Icon name="slides" size={12} />
+                {t.chooseSlides}
+              </span>
+            )}
+            <span title={t.langName[p.language]}>{p.language === "el" ? "ΕΛ" : "EN"}</span>
           </span>
         </div>
         <p className="mt-2 flex items-center gap-2 px-0.5 text-sm text-ink">
@@ -99,29 +108,45 @@ function ProjectTile({ p, onDelete }: { p: Project; onDelete: (p: Project) => vo
 
 export default function Dashboard() {
   const { t } = useI18n();
-  const [projects, setProjects] = useState<Project[] | null>(null);
+  const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function onDelete(p: Project) {
     if (!window.confirm(t.confirmDelete(p.title))) return;
     try {
       await deleteProject(p.id);
-      setProjects((prev) => prev?.filter((q) => q.id !== p.id) ?? null);
+      setItems((prev) => prev?.filter((i) => !(i.kind === "project" && i.p.id === p.id)) ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function onDeleteDeck(d: DeckSummary) {
+    if (!window.confirm(t.confirmDeleteDeck(d.title, d.animation_count))) return;
+    try {
+      await deleteDeck(d.id);
+      // The deck's animations stay, now unlinked.
+      setItems((prev) => prev?.filter((i) => !(i.kind === "deck" && i.d.id === d.id))
+        .map((i) => (i.kind === "project" && i.p.deck_id === d.id ? { kind: "project", p: { ...i.p, deck_id: null } } : i)) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
 
   useEffect(() => {
-    listProjects()
-      .then(setProjects)
+    Promise.all([listProjects(), listDecks()])
+      .then(([projects, decks]) => {
+        const all: Item[] = [...projects.map((p) => ({ kind: "project", p }) as Item), ...decks.map((d) => ({ kind: "deck", d }) as Item)];
+        const at = (i: Item) => (i.kind === "project" ? i.p.created_at : i.d.created_at);
+        setItems(all.sort((a, b) => at(b).localeCompare(at(a))));
+      })
       .catch((e) => setError(e.message));
   }, []);
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourExplanations}</h1>
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourMaterials}</h1>
         <p className="mt-2 text-lg text-muted">{t.dashSubtitle}</p>
       </div>
 
@@ -130,13 +155,13 @@ export default function Dashboard() {
           {t.loadError(error)}
         </p>
       )}
-      {!projects && !error && (
+      {!items && !error && (
         <p className="text-muted" aria-live="polite">
           {t.loading}
         </p>
       )}
 
-      {projects?.length === 0 && (
+      {items?.length === 0 && (
         <div className="stage stage-grid grid gap-8 rounded-2xl px-6 py-12 sm:grid-cols-[1fr_minmax(0,22rem)] sm:items-center sm:px-12">
           <div className="max-w-md space-y-4">
             <h2 className="font-serif text-3xl leading-tight font-semibold">{t.emptyTitle}</h2>
@@ -149,11 +174,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {projects && projects.length > 0 && (
+      {items && items.length > 0 && (
         <ul className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
-            <ProjectTile key={p.id} p={p} onDelete={onDelete} />
-          ))}
+          {items.map((i) =>
+            i.kind === "project" ? <ProjectTile key={i.p.id} p={i.p} onDelete={onDelete} /> : <DeckTile key={i.d.id} d={i.d} onDelete={onDeleteDeck} />,
+          )}
         </ul>
       )}
     </div>

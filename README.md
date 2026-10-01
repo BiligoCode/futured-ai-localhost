@@ -1,8 +1,16 @@
 # Lara — Learning Assessment & Resource Automation
 
-Name a concept (optionally with your course material), and Lara drafts a script, writes and renders a
-[Manim](https://www.manim.community/) animation for it, and narrates it with an AI voice or your own voice.
-Greek and English.
+Two kinds of teaching material, Greek and English:
+
+- **Animation** — name a concept (optionally with your course material), and Lara drafts a script, writes and
+  renders a [Manim](https://www.manim.community/) animation for it, and narrates it with an AI voice or your own voice.
+- **Slides** — write 16:9 lecture slides in a rich-text editor with Lara beside you in a chat: ask questions, have
+  her write or correct text, change the formatting — in any mix, from one message. Embed your animations, export
+  to PDF or Word.
+
+**New material** opens the chooser between the two.
+
+## Animation
 
 **Flow:** Setup (concept, optional material, style & tone, length) → Script (edit / reorder / approve) → one video.
 The professor only ever sees a single video:
@@ -39,15 +47,45 @@ animation for text drawn on top of other text, text cut off by the frame edge, a
 Problems go back to the model with coordinates (like a crash would) for up to two fixes; if they persist,
 the cleanest render is kept and the remaining issues are stored on the scene (`layout_issues`).
 
+## Slides
+
+**Flow:** Title, language, optional material → the workspace: slides on the left (a strip of thumbnails, the
+formatting toolbar, one editable 16:9 slide after another), the chat on the right, a draggable divider between them.
+Everything autosaves.
+
+- **Writing.** Titles, headings and body text; bold, italic, underline, highlight; four sizes; eight colours; bullet
+  and numbered lists; alignment. A slide that no longer fits its frame gets a red rule and a hint (exports clip at the
+  frame). Add, reorder and delete slides from the strip (delete has an undo).
+- **Ask Lara.** One message can ask a question, ask for text and ask for formatting at once; Lara answers in the chat
+  and applies the changes, listing them as chips ("Changed slide 3", "Added Summary") with an undo. The current
+  slide and any selected text are attached as hints and can be removed with one click. Slide text is written in the
+  deck's language; she answers in the language you write in. Under the hood it is one model call returning
+  `{reply, edits}` JSON, where each edit carries the full new HTML of a slide (a small whitelist the sanitiser,
+  the editor and the exporters share — see `docs/slides/`).
+- **Animations.** **Create animation** opens the animation setup with the deck attached as material; the project
+  remembers its deck. When the video is ready, **Add to slides** on the project page puts it on a slide (or on a new
+  slide) as an embedded video with a poster frame. The deck header lists all its animations.
+- **Export.** PDF (WeasyPrint, Lara's own fonts, one slide per page) or Word (one slide per page, Cambria/Calibri,
+  editable). Neither format can play a video, so a deck with embedded animations downloads as a **.zip** holding the
+  document and the MP4 files; the document shows a still of each animation with its file name.
+
 ```
-api/   FastAPI service: Bedrock LLM, Manim rendering, ElevenLabs TTS, ffmpeg
-web/   Next.js dashboard
-data/  projects on disk (git-ignored)
+data/decks/<id>/deck.json      slides (HTML), chat history, version
+data/decks/<id>/material.txt   the professor's material
+data/decks/<id>/posters/       stills of embedded animations
+data/decks/<id>/export/        the last PDF / Word / zip
+```
+
+```
+api/   FastAPI service: Bedrock LLM, Manim rendering, ElevenLabs TTS, ffmpeg, WeasyPrint / python-docx exports
+web/   Next.js dashboard (TipTap slide editor)
+data/  projects and decks on disk (git-ignored)
+docs/  design specs and implementation plans (docs/slides/ for the slides feature)
 ```
 
 ## Prerequisites
 
-- ffmpeg/ffprobe, a LaTeX distribution with `dvisvgm` (for Manim's `MathTex`), Cairo/Pango (Manim)
+- ffmpeg/ffprobe, a LaTeX distribution with `dvisvgm` (for Manim's `MathTex`), Cairo/Pango (Manim; WeasyPrint uses them too)
 - [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`) — Python 3.12 is installed by uv
 - Node 22+
 
@@ -86,8 +124,20 @@ Open http://localhost:3000. Recording your voice needs microphone permission (Ch
 ```bash
 cd api && uv run pytest -m "not slow"   # fast unit + API tests (fakes for LLM, renderer, TTS)
 cd api && uv run pytest                 # everything, including real Manim and ffmpeg
-cd web && npm run build && npm run lint
+cd web && npm run build && npm run lint && npm test   # typecheck + build, lint, Vitest for pure helpers
 ```
+
+Browser QA for the slides workspace drives the installed Google Chrome through Playwright against running dev
+servers (`web/qa/*.mjs`; pass the deck id, and the web/API URLs if not the defaults):
+
+```bash
+cd web && node qa/deck-editor.mjs <deckId>      # typing, toolbar, add/delete/undo, title, reload
+cd web && node qa/deck-chat.mjs <deckId>        # a mixed request against the real model, chips, undo
+cd web && node qa/deck-animation.mjs <deckId>   # deck → animation setup → Add to slides (drafts a real script)
+cd web && node qa/deck-export.mjs <deckId>      # PDF and Word downloads
+```
+
+Prompt check for the slides assistant: `cd api && uv run python scripts/try_deck_chat.py`.
 
 ## Pitch fallback
 

@@ -36,6 +36,17 @@ EXACT = {
     "Could not read the uploaded PDF": "Δεν ήταν δυνατή η ανάγνωση του PDF",
     "AI voice is not configured: set ELEVENLABS_API_KEY in .env":
         "Η φωνή AI δεν έχει ρυθμιστεί: ορίστε ELEVENLABS_API_KEY στο .env",
+    # Slides
+    "Slides not found": "Οι διαφάνειες δεν βρέθηκαν",
+    "The slides were changed elsewhere": "Οι διαφάνειες άλλαξαν από αλλού",
+    "The AI reply could not be applied. Please try again.":
+        "Η απάντηση του AI δεν μπόρεσε να εφαρμοστεί. Δοκιμάστε ξανά.",
+    "The animation is not ready yet": "Η κινούμενη εικόνα δεν είναι ακόμα έτοιμη",
+    "Slide is too long": "Η διαφάνεια είναι πολύ μεγάλη",
+    "This slide does not exist": "Αυτή η διαφάνεια δεν υπάρχει",
+    "Poster not found": "Η εικόνα δεν βρέθηκε",
+    "Export not found": "Το αρχείο εξαγωγής δεν βρέθηκε",
+    "Please give the slides a title": "Δώστε έναν τίτλο στις διαφάνειες",
 }
 
 PREFIXES = {
@@ -46,6 +57,7 @@ PREFIXES = {
     "ElevenLabs request failed": "Το αίτημα προς το ElevenLabs απέτυχε",
     "ElevenLabs returned an unexpected response: ": "Το ElevenLabs επέστρεψε απρόσμενη απάντηση: ",
     "Export failed: ": "Η εξαγωγή απέτυχε: ",
+    "Could not take a still from the animation: ": "Δεν ήταν δυνατή η λήψη καρέ από την κινούμενη εικόνα: ",
 }
 
 

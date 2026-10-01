@@ -24,7 +24,7 @@ export default function ProjectPage() {
 
   function backToSetup() {
     if (scriptDirty && !window.confirm(t.discardChanges)) return;
-    router.push(`/new?from=${id}`);
+    router.push(`/new/animation?from=${id}`);
   }
 
   async function backToScript() {
@@ -69,7 +69,7 @@ export default function ProjectPage() {
   const step = project.stage === "storyboard" ? 2 : project.preview.version === 0 ? 3 : 4;
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <Stepper current={step} go={step === 2 ? { 1: backToSetup } : { 1: backToSetup, 2: backToScript }} />
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-3xl min-w-0">

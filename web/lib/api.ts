@@ -1,5 +1,5 @@
 import { LANG_COOKIE, MESSAGES, parseLang } from "./messages";
-import type { Cut, CutKind, Hold, Project, ReviseResult, SceneDraft } from "./types";
+import type { ChatResult, Cut, CutKind, Deck, DeckSummary, DeckUpdate, EmbedMode, ExportFormat, Hold, Project, ReviseResult, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -93,3 +93,26 @@ function contentTag(signature: string): string {
 // narrated video is version 1 again and the browser would play the old one from its cache.
 export const cutUrl = (id: string, kind: CutKind, cut: Pick<Cut, "version" | "signature">) =>
   `${API_URL}/projects/${id}/${kind === "final" ? "export" : "preview"}.mp4?v=${cut.version}.${contentTag(cut.signature)}`;
+
+// --- Slides ------------------------------------------------------------------------------------------------------
+
+export const listDecks = () => request<DeckSummary[]>("/decks");
+export const getDeck = (id: string) => request<Deck>(`/decks/${id}`);
+export const createDeck = (form: FormData) => request<Deck>("/decks", { method: "POST", body: form });
+export const saveDeck = (id: string, body: DeckUpdate) => request<Deck>(`/decks/${id}`, json("PUT", body));
+/** Fire-and-forget save for when the page is being left; `keepalive` lets the browser finish it after unload. */
+export const saveDeckOnLeave = (id: string, body: DeckUpdate) => {
+  void fetch(`${API_URL}/decks/${id}`, { ...json("PUT", body), keepalive: true, headers: { "Content-Type": "application/json", "X-Lara-Lang": uiLang() } }).catch(() => undefined);
+};
+export const deleteDeck = (id: string) => request<void>(`/decks/${id}`, { method: "DELETE" });
+export const chatDeck = (
+  id: string,
+  body: { message: string; slide_id: string | null; selection: string | null },
+  signal?: AbortSignal,
+) => request<ChatResult>(`/decks/${id}/chat`, { ...json("POST", body), signal });
+export const embedAnimation = (deckId: string, body: { project_id: string; slide_id: string | null; mode: EmbedMode }) =>
+  request<Deck>(`/decks/${deckId}/embed`, json("POST", body));
+export const exportDeck = (id: string, format: ExportFormat) =>
+  request<{ url: string; filename: string }>(`/decks/${id}/export`, json("POST", { format }));
+export const posterUrl = (deckId: string, projectId: string) => `${API_URL}/decks/${deckId}/posters/${projectId}.jpg`;
+export const exportUrl = (url: string) => `${API_URL}${url}`;
