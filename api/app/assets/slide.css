@@ -46,6 +46,14 @@
   padding-left: 1.2em;
 }
 
+.slide ul {
+  list-style: disc;
+}
+
+.slide ol {
+  list-style: decimal;
+}
+
 .slide li {
   margin: 0 0 8px;
 }

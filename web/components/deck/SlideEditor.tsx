@@ -3,6 +3,7 @@
 import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { Placeholder } from "@tiptap/extensions";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,8 +17,9 @@ import { VideoBlock } from "./VideoBlock";
 export const SELECTION_CHARS = 500;
 
 /** The schema equals the API whitelist: h1/h2, paragraphs, lists, bold/italic/underline, highlight, colour, size, alignment. */
-export function slideExtensions() {
+export function slideExtensions(placeholder: string) {
   return [
+    Placeholder.configure({ placeholder }),
     StarterKit.configure({
       heading: { levels: [1, 2] },
       strike: false,
@@ -61,7 +63,7 @@ export function SlideEditor({ slide, index, total, deckId, deckTitle, active, an
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    extensions: slideExtensions(),
+    extensions: slideExtensions(t.slidePlaceholder),
     content: slide.html,
     editorProps: { attributes: { "aria-label": t.slideN(index + 1) } },
     onUpdate: ({ editor }) => handlers.current.onChange(editor.getHTML()),
