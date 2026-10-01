@@ -25,8 +25,11 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
   const { t } = useI18n();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [useSlide, setUseSlide] = useState(true);
-  const [useSelection, setUseSelection] = useState(true);
+  // What the professor dismissed; a new slide or a new selection brings its chip back.
+  const [dismissedSlide, setDismissedSlide] = useState<string | null>(null);
+  const [dismissedSelection, setDismissedSelection] = useState<string | null>(null);
+  const useSlide = !!activeSlide && dismissedSlide !== activeSlide.id;
+  const useSelection = !!selection && dismissedSelection !== selection;
   const controller = useRef<AbortController | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -43,7 +46,7 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
     const ac = new AbortController();
     controller.current = ac;
     try {
-      await onSend(message, useSlide && !!activeSlide, useSelection && !!selection, ac.signal);
+      await onSend(message, useSlide, useSelection, ac.signal);
       setText("");
     } catch (err) {
       if (ac.signal.aborted) return;
@@ -143,7 +146,7 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft py-0.5 pr-0.5 pl-2.5 text-xs font-semibold text-accent">
                 <Icon name="slides" size={13} />
                 {activeSlide.label}
-                <button type="button" onClick={() => { setUseSlide(false); onClearSlide(); }} className="grid h-5 w-5 place-items-center rounded-full hover:bg-accent hover:text-white" aria-label={t.dontUseSlide}>
+                <button type="button" onClick={() => { setDismissedSlide(activeSlide.id); onClearSlide(); }} className="grid h-5 w-5 place-items-center rounded-full hover:bg-accent hover:text-white" aria-label={t.dontUseSlide}>
                   <Icon name="close" size={11} />
                 </button>
               </span>
@@ -151,7 +154,7 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
             {selection && useSelection && (
               <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-gold-soft py-0.5 pr-0.5 pl-2.5 text-xs font-semibold text-gold-ink">
                 <span className="truncate">{t.useSelection}: “{selection.length > 40 ? selection.slice(0, 40) + "…" : selection}”</span>
-                <button type="button" onClick={() => { setUseSelection(false); onClearSelection(); }} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-gold hover:text-white" aria-label={t.dontUseSelection}>
+                <button type="button" onClick={() => { setDismissedSelection(selection); onClearSelection(); }} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-gold hover:text-white" aria-label={t.dontUseSelection}>
                   <Icon name="close" size={11} />
                 </button>
               </span>
@@ -161,10 +164,6 @@ export function DeckChat({ messages, activeSlide, selection, busy, canUndo, onSe
             ref={textarea}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onFocus={() => {
-              setUseSlide(true);
-              setUseSelection(true);
-            }}
             rows={3}
             disabled={busy}
             aria-label={t.askLara}
