@@ -40,8 +40,11 @@ def create_app(settings: Settings, *, llm: LLM | None = None, renderer: Renderer
     app.state.store = store
     app.state.llm = llm or BedrockLLM(settings)
     app.state.renderer = renderer or make_renderer(settings)
-    app.state.tts = tts or CachedTTS(ElevenLabsTTS(settings.elevenlabs_api_key, settings.elevenlabs_voice_id),
-                                     settings.data_dir / "tts_cache")
+    app.state.tts = tts or CachedTTS(
+        ElevenLabsTTS(settings.elevenlabs_api_key, settings.elevenlabs_voice_id, settings.elevenlabs_model,
+                      voices={"el": settings.elevenlabs_voice_id_el, "en": settings.elevenlabs_voice_id_en},
+                      voice_settings=dict(settings.elevenlabs_voice_settings)),
+        settings.data_dir / "tts_cache")
     app.state.jobs = JobRunner()
 
     def error(request: Request, status: int, detail: str, headers=None) -> JSONResponse:

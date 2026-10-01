@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Iterable
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +37,19 @@ class JobRunner:
                     return
 
         self.submit(key, loop)
+
+    def keys(self, prefix: str) -> list[str]:
+        return [k for k in self._tasks if k.startswith(prefix)]
+
+    async def cancel(self, keys: Iterable[str]) -> None:
+        """Stop these jobs (and any queued re-run) and wait until they have unwound."""
+        tasks = []
+        for key in keys:
+            self._again.discard(key)
+            if task := self._tasks.get(key):
+                task.cancel()
+                tasks.append(task)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     @staticmethod
     async def _run(factory: Callable[[], Awaitable[None]]) -> None:

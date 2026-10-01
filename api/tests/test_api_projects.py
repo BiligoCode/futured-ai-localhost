@@ -34,10 +34,20 @@ async def test_create_with_pdf(tmp_path):
     assert "Loss surface" in prompt and "Learning rate" in prompt
 
 
-async def test_create_without_material_422(tmp_path):
-    app, _ = make_app(tmp_path)
+async def test_create_without_material_uses_own_knowledge(tmp_path):
+    app, llm = make_app(tmp_path)
     async with api_client(app) as c:
         r = await c.post("/projects", data={"concept": "x"})
+    assert r.status_code == 200
+    assert "none was given" in llm.calls[0][1][0]["content"]
+    assert app.state.store.material(r.json()["id"]) == ""
+
+
+async def test_create_with_unreadable_pdf_422(tmp_path):
+    app, _ = make_app(tmp_path)
+    async with api_client(app) as c:
+        r = await c.post("/projects", data={"concept": "x"},
+                         files=[("files", ("a.pdf", make_pdf(None), "application/pdf"))])
         assert r.status_code == 422
         assert r.json()["detail"] == "No readable text found in the uploaded material"
         assert (await c.get("/projects")).json() == []

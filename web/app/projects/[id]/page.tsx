@@ -1,17 +1,37 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { Icon } from "@/components/Icon";
 
 import { Stepper } from "@/components/Stepper";
 import { StoryboardEditor } from "@/components/StoryboardEditor";
 import { VideoWorkspace } from "@/components/VideoWorkspace";
+import { deleteProject } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useProject } from "@/lib/useProject";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useI18n();
+  const router = useRouter();
   const { project, error, setProject } = useProject(id);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function onDelete() {
+    if (!project || !window.confirm(t.confirmDelete(project.title))) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(project.id);
+      router.push("/");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+      setDeleting(false);
+    }
+  }
 
   if (error && !project)
     return (
@@ -31,10 +51,21 @@ export default function ProjectPage() {
   return (
     <div className="space-y-8">
       <Stepper current={step} />
-      <div className="max-w-3xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight break-words">{project.title}</h1>
-        <p className="mt-2 text-lg text-muted break-words">{project.concept}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="max-w-3xl min-w-0">
+          <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight break-words">{project.title}</h1>
+          <p className="mt-2 text-lg text-muted break-words">{project.concept}</p>
+        </div>
+        <button type="button" onClick={onDelete} disabled={deleting} className="btn btn-ghost mt-1 shrink-0">
+          <Icon name="trash" size={16} />
+          {t.deleteVideo}
+        </button>
       </div>
+      {deleteError && (
+        <p className="notice notice-error" role="alert">
+          {deleteError}
+        </p>
+      )}
 
       {project.stage === "storyboard" ? (
         <StoryboardEditor key={project.id} project={project} onChange={setProject} />

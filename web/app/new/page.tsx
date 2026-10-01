@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { Stepper } from "@/components/Stepper";
@@ -46,6 +46,7 @@ export default function NewProject() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const drafting = useRef<AbortController | null>(null);
 
   function addFiles(input: HTMLInputElement) {
     const picked = Array.from(input.files ?? []);
@@ -64,11 +65,13 @@ export default function NewProject() {
     const form = new FormData(e.currentTarget);
     form.delete("files");
     for (const f of files) form.append("files", f);
+    const controller = new AbortController();
+    drafting.current = controller;
     try {
-      const project = await createProject(form);
+      const project = await createProject(form, controller.signal);
       router.push(`/projects/${project.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
       setSubmitting(false);
     }
   }
@@ -150,6 +153,7 @@ export default function NewProject() {
               className="field"
               placeholder={t.pastePlaceholder}
             />
+            <p className="hint mt-1.5">{t.noMaterialHint}</p>
           </div>
         </div>
 
@@ -179,6 +183,11 @@ export default function NewProject() {
             <button type="submit" disabled={submitting} className="btn btn-primary w-full py-3 disabled:cursor-wait">
               {submitting ? t.drafting : t.draftScript}
             </button>
+            {submitting && (
+              <button type="button" onClick={() => drafting.current?.abort()} className="btn btn-ghost w-full">
+                {t.cancel}
+              </button>
+            )}
             <p className="hint text-center">{t.nothingAnimated}</p>
           </div>
         </div>

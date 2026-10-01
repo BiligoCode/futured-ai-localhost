@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { CurveSketch } from "@/components/Stage";
-import { cutUrl, listProjects } from "@/lib/api";
+import { cutUrl, deleteProject, listProjects } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { Messages } from "@/lib/messages";
 import { clock } from "@/lib/time";
@@ -38,13 +39,13 @@ function Poster({ p }: { p: Project }) {
   );
 }
 
-function ProjectTile({ p }: { p: Project }) {
+function ProjectTile({ p, onDelete }: { p: Project; onDelete: (p: Project) => void }) {
   const { t } = useI18n();
   const status = statusOf(p, t);
   const hasVideo = p.stage !== "storyboard" && p.preview.version > 0;
   const duration = hasVideo ? p[p.final.version > 0 ? "final" : "preview"].duration : 0;
   return (
-    <li>
+    <li className="group/tile relative">
       <Link
         href={`/projects/${p.id}`}
         className="group block rounded-xl focus-visible:outline-offset-4"
@@ -83,6 +84,15 @@ function ProjectTile({ p }: { p: Project }) {
           {status.label}
         </p>
       </Link>
+      <button
+        type="button"
+        aria-label={t.deleteLabel(p.title)}
+        title={t.deleteVideo}
+        onClick={() => onDelete(p)}
+        className="absolute top-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-md bg-black/60 text-white transition-opacity hover:bg-black/80 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
+      >
+        <Icon name="trash" size={16} />
+      </button>
     </li>
   );
 }
@@ -91,6 +101,16 @@ export default function Dashboard() {
   const { t } = useI18n();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function onDelete(p: Project) {
+    if (!window.confirm(t.confirmDelete(p.title))) return;
+    try {
+      await deleteProject(p.id);
+      setProjects((prev) => prev?.filter((q) => q.id !== p.id) ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   useEffect(() => {
     listProjects()
@@ -132,7 +152,7 @@ export default function Dashboard() {
       {projects && projects.length > 0 && (
         <ul className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
-            <ProjectTile key={p.id} p={p} />
+            <ProjectTile key={p.id} p={p} onDelete={onDelete} />
           ))}
         </ul>
       )}

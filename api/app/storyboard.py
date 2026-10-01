@@ -51,6 +51,14 @@ the screen stays empty: it is reserved for captions.
 {{"title": "<short title>", "scenes": [{{"title": "...", "visual": "...", "narration": "..."}}]}}"""
 
 
+NO_MATERIAL = """Course material: none was given. Teach the concept from your own knowledge, the way a careful \
+university lecturer would: use the standard definitions, notation and terminology of the field, pick the canonical \
+worked example a textbook would use, and cover what the rules ask of the material (definitions, the key idea, how \
+the method proceeds, correctness, complexity, edge cases, typical mistakes). Before writing, think the concept and \
+the example through step by step and check every value. State only what you are sure is correct; do not invent \
+citations or course-specific details."""
+
+
 class StoryboardError(RuntimeError):
     pass
 
@@ -106,7 +114,7 @@ def generate_storyboard(llm: LLM, *, material: str, concept: str, style: str, du
         f"Write the video in: {language_name(language)}\n"
         f"Style and tone: {style or 'clear and visual, friendly and precise'}\n"
         f"Video length: {DURATIONS[duration]['label']}\n\n"
-        f"Course material:\n<<<\n{material}\n>>>"
+        + (f"Course material:\n<<<\n{material}\n>>>" if material.strip() else NO_MATERIAL)
     )
     messages = [{"role": "user", "content": user}]
     error = ""

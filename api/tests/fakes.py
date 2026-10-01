@@ -41,8 +41,8 @@ class FakeTTS:
         self.fail = fail
         self.calls: list[tuple[str, str]] = []
 
-    def cache_key(self, text: str) -> str:
-        return f"fake-{abs(hash(text))}"
+    def cache_key(self, text: str, language: str = "") -> str:
+        return f"fake-{abs(hash((text, language)))}"
 
     def synthesize(self, text: str, language: str) -> bytes:
         from app.tts import TTSError

@@ -1,10 +1,10 @@
 # Lara — Learning Assessment & Resource Automation
 
-Upload your course material, name a concept, and Lara drafts a script, writes and renders a
+Name a concept (optionally with your course material), and Lara drafts a script, writes and renders a
 [Manim](https://www.manim.community/) animation for it, and narrates it with an AI voice or your own voice.
 Greek and English.
 
-**Flow:** Setup (concept, material, style & tone, length) → Script (edit / reorder / approve) → one video.
+**Flow:** Setup (concept, optional material, style & tone, length) → Script (edit / reorder / approve) → one video.
 The professor only ever sees a single video:
 
 - **Ask for a change** in plain words ("when the array gets iterated…", "at 0:32 …"). Lara works out which
@@ -15,6 +15,14 @@ The professor only ever sees a single video:
 - **AI voice** narrates the whole script instead. With **Captions** on, the AI narration is burned into the
   video as captions, timed from ElevenLabs' character timestamps. Every animation keeps the bottom strip of the
   frame free for them (a codegen rule the layout gate enforces).
+
+**No material?** Lecture notes, slides and pasted text are optional. Without them the model teaches the concept
+from its own knowledge (standard notation, a textbook worked example); uploaded PDFs with no readable text are
+still rejected.
+
+**Stop and delete.** **Stop** halts everything being generated for a video (scene renders, AI narration);
+finished parts are kept and **Continue** picks up the rest. **Cancel** on the setup form abandons a script that is
+still being drafted. **Delete** (on the video page, or the bin on its tile) removes a video and all its files.
 
 **Languages.** The interface is in Greek (default) or English, switched top right (stored in the `lara-lang`
 cookie; the API translates its messages from the `X-Lara-Lang` header). The *video's* language is only the one
@@ -45,7 +53,10 @@ data/  projects on disk (git-ignored)
 | `AWS_BEDROCK_REGION` | `us-east-1` | |
 | `AWS_BEDROCK_MODEL` | `zai.glm-5` | Any Bedrock Converse model. The hackathon account blocks Claude; GLM-5 won a Manim code bake-off (runner-up `deepseek.v3.2`). |
 | `ELEVENLABS_API_KEY` | — | AI narration (`eleven_multilingual_v2`, speaks Greek) |
-| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | |
+| `ELEVENLABS_VOICE_ID` | `JBFqnCBsd6RMkjVDRZzb` | Voice for any language without its own voice below |
+| `ELEVENLABS_VOICE_ID_EL` / `ELEVENLABS_VOICE_ID_EN` | — | A voice per video language (a native Greek voice reads Greek best) |
+| `ELEVENLABS_MODEL` | `eleven_multilingual_v2` | e.g. `eleven_v3`; models other than multilingual v2 also get `language_code` |
+| `ELEVENLABS_SPEED` / `_STABILITY` / `_SIMILARITY` / `_STYLE` | — | Optional `voice_settings`, e.g. `ELEVENLABS_SPEED=0.95` for teaching |
 | `RENDER_QUALITY` | `m` | `m` = 720p30, `l` = 480p15 (faster while developing) |
 | `DATA_DIR` | `<repo>/data` | |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated dashboard origins |

@@ -34,6 +34,8 @@ async def create_project(
         raise HTTPException(502, str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 - Bedrock/network errors must reach the UI as a readable 502
         raise HTTPException(502, f"The AI model request failed: {exc}") from exc
+    if await request.is_disconnected():
+        raise HTTPException(499, "Cancelled")  # the professor cancelled while the script was being drafted
     return request.app.state.store.create(title=title, concept=concept, style=style,
                                           duration=duration, language=language, material_text=material, scenes=drafts)
 
@@ -46,6 +48,32 @@ def list_projects(request: Request) -> list[Project]:
 @router.get("/projects/{project_id}")
 def get_project(project_id: str, request: Request) -> Project:
     return request.app.state.store.get(project_id)
+
+
+async def _cancel_jobs(app, project_id: str) -> None:
+    jobs = app.state.jobs
+    await jobs.cancel(jobs.keys(f"{project_id}:") + [f"narration:{project_id}"])
+
+
+@router.post("/projects/{project_id}/cancel")
+async def cancel_project(project_id: str, request: Request) -> Project:
+    """Stop everything being generated for this video. Finished scenes and voices are kept."""
+    store = request.app.state.store
+    store.get(project_id)
+    await _cancel_jobs(request.app, project_id)
+    await store.stop_busy(project_id)
+    await schedule_refresh(request.app, project_id)
+    return store.get(project_id)
+
+
+@router.delete("/projects/{project_id}", status_code=204)
+async def delete_project(project_id: str, request: Request) -> None:
+    store = request.app.state.store
+    store.get(project_id)
+    await _cancel_jobs(request.app, project_id)
+    # Cancelled jobs may have queued a rebuild of the videos on their way out: stop that last.
+    await request.app.state.jobs.cancel([f"cuts:{project_id}"])
+    await store.delete(project_id)
 
 
 @router.put("/projects/{project_id}/storyboard")

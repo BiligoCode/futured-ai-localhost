@@ -9,6 +9,7 @@ LANG_HEADER = "x-lara-lang"
 EXACT = {
     "Project not found": "Το έργο δεν βρέθηκε",
     "Scene not found": "Το τμήμα δεν βρέθηκε",
+    "Cancelled": "Ακυρώθηκε",
     "Scene is already being processed": "Αυτό το τμήμα επεξεργάζεται ήδη",
     "Scene has not been rendered yet": "Αυτό το τμήμα δεν έχει δημιουργηθεί ακόμα",
     "Storyboard can only be edited before rendering starts":
