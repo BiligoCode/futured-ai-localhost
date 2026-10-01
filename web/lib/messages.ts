@@ -10,6 +10,7 @@ const en = {
   // Shell
   tagline: "Learning Assessment & Resource Automation",
   newExplanation: "New explanation",
+  newMaterial: "New material",
   skipToContent: "Skip to content",
   loading: "Loading…",
   interfaceLanguage: "Interface language",
@@ -18,6 +19,7 @@ const en = {
 
   // Dashboard
   yourExplanations: "Your explanations",
+  yourMaterials: "Your materials",
   dashSubtitle: "Animated, narrated explanations built from your own course material.",
   loadError: (e: string) => `Could not load your explanations: ${e}. Check that the Lara API is running, then reload the page.`,
   emptyTitle: "Start with one concept you teach.",
@@ -33,6 +35,15 @@ const en = {
   steps: ["Setup", "Script", "Animation", "Review & narrate"],
   progress: "Progress",
   stepDone: "(done)",
+
+  // Chooser
+  chooseTitle: "What would you like to make?",
+  chooseSubtitle: "An animated explanation, or a deck of slides written with Lara beside you.",
+  chooseAnimation: "Animation",
+  chooseAnimationBody: "Lara drafts a script, renders a Manim animation and narrates it — with an AI voice or yours.",
+  chooseSlides: "Slides",
+  chooseSlidesBody: "Write lecture slides with an AI assistant, embed your animations, export to PDF or Word.",
+  chooseStart: "Start",
 
   // New project
   newTitle: "New visual explanation",
@@ -186,6 +197,7 @@ export type Messages = typeof en;
 const el: Messages = {
   tagline: "Αξιολόγηση Μάθησης & Αυτοματοποίηση Υλικού",
   newExplanation: "Νέα εξήγηση",
+  newMaterial: "Νέο υλικό",
   skipToContent: "Μετάβαση στο περιεχόμενο",
   loading: "Φόρτωση…",
   interfaceLanguage: "Γλώσσα εφαρμογής",
@@ -193,6 +205,7 @@ const el: Messages = {
   somethingWrong: "Κάτι πήγε στραβά",
 
   yourExplanations: "Οι εξηγήσεις σας",
+  yourMaterials: "Το υλικό σας",
   dashSubtitle: "Κινούμενες εξηγήσεις με αφήγηση, φτιαγμένες από το δικό σας υλικό μαθήματος.",
   loadError: (e) => `Δεν ήταν δυνατή η φόρτωση των εξηγήσεων: ${e}. Ελέγξτε ότι τρέχει το Lara API και ανανεώστε τη σελίδα.`,
   emptyTitle: "Ξεκινήστε με μια έννοια που διδάσκετε.",
@@ -207,6 +220,14 @@ const el: Messages = {
   steps: ["Ρυθμίσεις", "Σενάριο", "Κινούμενη εικόνα", "Έλεγχος & αφήγηση"],
   progress: "Πρόοδος",
   stepDone: "(ολοκληρώθηκε)",
+
+  chooseTitle: "Τι θέλετε να φτιάξετε;",
+  chooseSubtitle: "Μια κινούμενη εξήγηση, ή διαφάνειες γραμμένες με τη Lara δίπλα σας.",
+  chooseAnimation: "Κινούμενη εξήγηση",
+  chooseAnimationBody: "Η Lara γράφει σενάριο, φτιάχνει μια κινούμενη εικόνα με Manim και την αφηγείται — με φωνή AI ή τη δική σας.",
+  chooseSlides: "Διαφάνειες",
+  chooseSlidesBody: "Γράψτε διαφάνειες μαθήματος με έναν βοηθό AI, ενσωματώστε τις κινούμενες εικόνες σας, εξάγετε σε PDF ή Word.",
+  chooseStart: "Ξεκινήστε",
 
   newTitle: "Νέα οπτική εξήγηση",
   newSubtitle: "Γράψτε την έννοια και, αν θέλετε, προσθέστε υλικό του μαθήματος. Η Lara γράφει ένα σενάριο που μπορείτε να διορθώσετε πριν δημιουργηθεί οτιδήποτε.",

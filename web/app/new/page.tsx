@@ -1,254 +1,62 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
-import { Stepper } from "@/components/Stepper";
-import { createProject, getMaterial, getProject } from "@/lib/api";
+import { CurveSketch } from "@/components/Stage";
 import { useI18n } from "@/lib/i18n";
-import type { Project } from "@/lib/types";
 
-const LANGUAGES = [
-  { value: "el", label: "Ελληνικά", lang: "el" },
-  { value: "en", label: "English", lang: "en" },
-] as const;
-
-/** A row of radio buttons that reads as a segmented control. */
-function Segmented({ name, legend, options, defaultValue, hint }: {
-  name: string;
-  legend: string;
-  options: readonly { value: string; label: string; lang?: string }[];
-  defaultValue: string;
-  hint?: string;
-}) {
+/** A small 16:9 slide with text bars and an embedded clip: the Slides card's emblem. */
+function SlideSketch({ className }: { className?: string }) {
   return (
-    <fieldset>
-      <legend className="label">{legend}</legend>
-      {hint && <p className="hint -mt-1 mb-2">{hint}</p>}
-      <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-sunken p-1">
-        {options.map((o) => (
-          <label key={o.value} className="cursor-pointer" lang={o.lang}>
-            <input type="radio" name={name} value={o.value} defaultChecked={o.value === defaultValue} className="peer sr-only" />
-            <span className="block rounded-md px-3 py-2 text-center text-sm text-muted transition-colors peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[0_1px_2px_rgb(15_20_27/0.12)] peer-focus-visible:outline-2 peer-focus-visible:outline-accent hover:text-ink">
-              {o.label}
-            </span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
+    <svg viewBox="0 0 160 90" className={className} aria-hidden="true" fill="none">
+      <rect x="1" y="1" width="158" height="88" rx="6" className="fill-surface stroke-rule-strong" strokeWidth="1.5" />
+      <rect x="16" y="16" width="70" height="7" rx="2" className="fill-ink" />
+      <rect x="16" y="32" width="96" height="4" rx="2" className="fill-faint" />
+      <rect x="16" y="42" width="84" height="4" rx="2" className="fill-faint" />
+      <rect x="16" y="52" width="90" height="4" rx="2" className="fill-faint" />
+      <rect x="100" y="56" width="44" height="26" rx="3" className="fill-stage" />
+      <path d="M118 63.5v11l9-5.5-9-5.5Z" className="fill-manim" />
+    </svg>
   );
 }
 
-/** Back to setup from an existing video: its settings and material, to change and redraft. */
-type Source = { project: Project; material: string };
-
-export default function NewProject() {
-  return (
-    <Suspense fallback={null}>
-      <SetupLoader />
-    </Suspense>
-  );
-}
-
-function SetupLoader() {
+export default function Chooser() {
   const { t } = useI18n();
-  const from = useSearchParams().get("from");
-  const [source, setSource] = useState<Source | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!from) return;
-    let cancelled = false;
-    Promise.all([getProject(from), getMaterial(from)])
-      .then(([project, material]) => !cancelled && setSource({ project, material }))
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      cancelled = true;
-    };
-  }, [from]);
-
-  if (from && error)
-    return (
-      <p className="notice notice-error" role="alert">
-        {error}
-      </p>
-    );
-  if (from && !source)
-    return (
-      <p className="text-muted" aria-live="polite">
-        {t.loading}
-      </p>
-    );
-  return <SetupForm key={source?.project.id ?? "new"} source={from ? source : null} />;
-}
-
-function SetupForm({ source }: { source: Source | null }) {
-  const { lang, t } = useI18n();
-  const router = useRouter();
-  const durations = (["short", "medium", "long"] as const).map((value) => ({ value, label: t.durations[value] }));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const drafting = useRef<AbortController | null>(null);
-
-  function addFiles(input: HTMLInputElement) {
-    const picked = Array.from(input.files ?? []);
-    // Reset so picking the same file again after removing it still fires onChange.
-    input.value = "";
-    setFiles((prev) => [
-      ...prev,
-      ...picked.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size)),
-    ]);
-  }
-
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const form = new FormData(e.currentTarget);
-    form.delete("files");
-    for (const f of files) form.append("files", f);
-    const controller = new AbortController();
-    drafting.current = controller;
-    try {
-      const project = await createProject(form, controller.signal);
-      router.push(`/projects/${project.id}`);
-    } catch (err) {
-      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
-      setSubmitting(false);
-    }
-  }
-
   return (
-    <div className="space-y-8">
-      <Stepper current={1} go={source ? { 2: `/projects/${source.project.id}` } : undefined} />
+    <div className="mx-auto max-w-6xl space-y-8">
       <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight">
-          {source ? t.changeSetupTitle : t.newTitle}
-        </h1>
-        <p className="mt-2 text-lg text-muted">{source ? t.changeSetupSubtitle : t.newSubtitle}</p>
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight">{t.chooseTitle}</h1>
+        <p className="mt-2 text-lg text-muted">{t.chooseSubtitle}</p>
       </div>
 
-      <form onSubmit={onSubmit} className="panel grid overflow-hidden lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {source && <input type="hidden" name="replaces" value={source.project.id} />}
-        <div className="space-y-6 p-6 sm:p-8">
-          <div>
-            <label htmlFor="concept" className="label">
-              {t.conceptLabel}
-            </label>
-            <input
-              id="concept"
-              name="concept"
-              required
-              autoComplete="off"
-              defaultValue={source?.project.concept}
-              className="field font-serif text-2xl leading-snug"
-              placeholder={t.conceptPlaceholder}
-            />
-          </div>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Link
+          href="/new/animation"
+          className="group stage stage-grid flex min-h-[20rem] flex-col justify-end rounded-2xl p-7 ring-1 ring-black/5 transition-[box-shadow] hover:shadow-[0_18px_40px_-18px_rgb(15_20_27/0.6)] focus-visible:outline-offset-4"
+        >
+          <CurveSketch className="pointer-events-none absolute top-6 right-6 w-1/2 opacity-90" />
+          <h2 className="font-serif text-3xl leading-tight font-semibold">{t.chooseAnimation}</h2>
+          <p className="mt-2 max-w-sm text-sm text-stage-muted">{t.chooseAnimationBody}</p>
+          <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-manim">
+            {t.chooseStart}
+            <Icon name="send" size={16} className="transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Link>
 
-          <div>
-            <span className="label">{t.notesLabel}</span>
-            <label className="group flex cursor-pointer items-center gap-4 rounded-lg border border-dashed border-rule-strong bg-paper px-4 py-4 transition-colors hover:border-accent focus-within:border-accent focus-within:outline-2 focus-within:outline-accent">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface text-accent ring-1 ring-rule">
-                <Icon name="file" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">
-                  {files.length ? t.addMorePdfs : t.choosePdfs}
-                </span>
-                <span className="hint block">{t.pdfHint}</span>
-              </span>
-              <input
-                name="files"
-                type="file"
-                accept="application/pdf"
-                multiple
-                className="sr-only"
-                onChange={(e) => addFiles(e.currentTarget)}
-              />
-            </label>
-            {files.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {files.map((f, i) => (
-                  <li key={`${f.name}-${f.size}`} className="flex items-center gap-2 rounded-md bg-sunken px-3 py-1.5 text-sm">
-                    <Icon name="file" size={16} className="shrink-0 text-accent" />
-                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                    <button
-                      type="button"
-                      aria-label={t.removeFile(f.name)}
-                      className="text-muted hover:text-ink"
-                      onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <Icon name="close" size={16} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="material_text" className="label">
-              {t.pasteLabel}
-            </label>
-            <textarea
-              id="material_text"
-              name="material_text"
-              rows={6}
-              autoComplete="off"
-              defaultValue={source?.material}
-              className="field"
-              placeholder={t.pastePlaceholder}
-            />
-            <p className="hint mt-1.5">{t.noMaterialHint}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6 border-t border-rule bg-paper/60 p-6 sm:p-8 lg:border-t-0 lg:border-l">
-          <Segmented name="language" legend={t.videoLanguage} hint={t.videoLanguageHint} options={LANGUAGES} defaultValue={source?.project.language ?? lang} />
-          <div>
-            <label htmlFor="style" className="label">
-              {t.styleLabel}
-            </label>
-            <textarea
-              id="style"
-              name="style"
-              rows={3}
-              autoComplete="off"
-              defaultValue={source?.project.style}
-              className="field"
-              placeholder={t.stylePlaceholder}
-            />
-          </div>
-          <Segmented name="duration" legend={t.videoLength} options={durations} defaultValue={source?.project.duration ?? "medium"} />
-
-          <div className="mt-auto space-y-3 pt-2">
-            {error && (
-              <p className="notice notice-error" role="alert">
-                {error}
-              </p>
-            )}
-            {source && <p className="notice notice-warn">{t.redraftWarning}</p>}
-            <button type="submit" disabled={submitting} className="btn btn-primary w-full py-3 disabled:cursor-wait">
-              {submitting ? t.drafting : source ? t.redraftScript : t.draftScript}
-            </button>
-            {submitting && (
-              <button type="button" onClick={() => drafting.current?.abort()} className="btn btn-ghost w-full">
-                {t.cancel}
-              </button>
-            )}
-            {source && !submitting ? (
-              <button type="button" onClick={() => router.push(`/projects/${source.project.id}`)} className="btn btn-ghost w-full">
-                {t.keepScript}
-              </button>
-            ) : (
-              <p className="hint text-center">{t.nothingAnimated}</p>
-            )}
-          </div>
-        </div>
-      </form>
+        <Link
+          href="/new/slides"
+          className="group panel relative flex min-h-[20rem] flex-col justify-end overflow-hidden p-7 transition-[box-shadow,border-color] hover:border-accent hover:shadow-[0_18px_40px_-18px_rgb(15_20_27/0.35)] focus-visible:outline-offset-4"
+        >
+          <SlideSketch className="pointer-events-none absolute top-6 right-6 w-1/2 drop-shadow-[0_6px_14px_rgb(15_20_27/0.12)]" />
+          <h2 className="font-serif text-3xl leading-tight font-semibold">{t.chooseSlides}</h2>
+          <p className="mt-2 max-w-sm text-sm text-muted">{t.chooseSlidesBody}</p>
+          <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-accent">
+            {t.chooseStart}
+            <Icon name="send" size={16} className="transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -119,9 +119,9 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourExplanations}</h1>
+        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourMaterials}</h1>
         <p className="mt-2 text-lg text-muted">{t.dashSubtitle}</p>
       </div>
 
