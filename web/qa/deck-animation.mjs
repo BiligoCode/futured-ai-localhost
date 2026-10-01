@@ -1,7 +1,7 @@
 // End-to-end: deck → Create animation → (script drafted by the real model) → mark rendered → Add to slides.
 //   node qa/deck-animation.mjs <deckId> [web] [api] [dataDir]
 import { execSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const [deckId, web = "http://localhost:3100", api = "http://localhost:8001", dataDir = "../data"] = process.argv.slice(2);
