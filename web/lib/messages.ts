@@ -45,6 +45,17 @@ const en = {
   chooseSlidesBody: "Write lecture slides with an AI assistant, embed your animations, export to PDF or Word.",
   chooseStart: "Start",
 
+  // New deck
+  deckNewTitle: "New slides",
+  deckNewSubtitle: "Name the deck and, if you like, add your course material. Lara reads it when you ask her to write or check slides.",
+  deckTitleLabel: "Title of the deck",
+  deckTitlePlaceholder: "e.g. Lecture 4 — Sorting",
+  deckLanguage: "Slides language",
+  deckLanguageHint: "Lara writes slide text in this language, whatever language you chat in.",
+  createDeck: "Create slides",
+  creatingDeck: "Creating…",
+  deckStartHint: "You start with a title slide; write, or ask Lara to draft the deck.",
+
   // New project
   newTitle: "New visual explanation",
   newSubtitle: "Name the concept and, if you like, add your course material. Lara drafts a script you can edit before anything is animated.",
@@ -228,6 +239,16 @@ const el: Messages = {
   chooseSlides: "Διαφάνειες",
   chooseSlidesBody: "Γράψτε διαφάνειες μαθήματος με έναν βοηθό AI, ενσωματώστε τις κινούμενες εικόνες σας, εξάγετε σε PDF ή Word.",
   chooseStart: "Ξεκινήστε",
+
+  deckNewTitle: "Νέες διαφάνειες",
+  deckNewSubtitle: "Δώστε έναν τίτλο και, αν θέλετε, προσθέστε το υλικό του μαθήματος. Η Lara το διαβάζει όταν της ζητάτε να γράψει ή να ελέγξει διαφάνειες.",
+  deckTitleLabel: "Τίτλος της παρουσίασης",
+  deckTitlePlaceholder: "π.χ. Διάλεξη 4 — Ταξινόμηση",
+  deckLanguage: "Γλώσσα διαφανειών",
+  deckLanguageHint: "Η Lara γράφει το κείμενο των διαφανειών σε αυτή τη γλώσσα, όποια γλώσσα κι αν χρησιμοποιείτε στη συνομιλία.",
+  createDeck: "Δημιουργία διαφανειών",
+  creatingDeck: "Δημιουργία…",
+  deckStartHint: "Ξεκινάτε με μια διαφάνεια τίτλου· γράψτε, ή ζητήστε από τη Lara να ετοιμάσει την παρουσίαση.",
 
   newTitle: "Νέα οπτική εξήγηση",
   newSubtitle: "Γράψτε την έννοια και, αν θέλετε, προσθέστε υλικό του μαθήματος. Η Lara γράφει ένα σενάριο που μπορείτε να διορθώσετε πριν δημιουργηθεί οτιδήποτε.",

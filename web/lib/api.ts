@@ -1,5 +1,5 @@
 import { LANG_COOKIE, MESSAGES, parseLang } from "./messages";
-import type { CutKind, Hold, Project, ReviseResult, SceneDraft } from "./types";
+import type { ChatResult, CutKind, Deck, DeckSummary, DeckUpdate, EmbedMode, ExportFormat, Hold, Project, ReviseResult, SceneDraft } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -84,3 +84,22 @@ export function uploadTake(id: string, blob: Blob, fromScene: string, holds: Hol
 
 export const cutUrl = (id: string, kind: CutKind, version: number) =>
   `${API_URL}/projects/${id}/${kind === "final" ? "export" : "preview"}.mp4?v=${version}`;
+
+// --- Slides ------------------------------------------------------------------------------------------------------
+
+export const listDecks = () => request<DeckSummary[]>("/decks");
+export const getDeck = (id: string) => request<Deck>(`/decks/${id}`);
+export const createDeck = (form: FormData) => request<Deck>("/decks", { method: "POST", body: form });
+export const saveDeck = (id: string, body: DeckUpdate) => request<Deck>(`/decks/${id}`, json("PUT", body));
+export const deleteDeck = (id: string) => request<void>(`/decks/${id}`, { method: "DELETE" });
+export const chatDeck = (
+  id: string,
+  body: { message: string; slide_id: string | null; selection: string | null },
+  signal?: AbortSignal,
+) => request<ChatResult>(`/decks/${id}/chat`, { ...json("POST", body), signal });
+export const embedAnimation = (deckId: string, body: { project_id: string; slide_id: string | null; mode: EmbedMode }) =>
+  request<Deck>(`/decks/${deckId}/embed`, json("POST", body));
+export const exportDeck = (id: string, format: ExportFormat) =>
+  request<{ url: string; filename: string }>(`/decks/${id}/export`, json("POST", { format }));
+export const posterUrl = (deckId: string, projectId: string) => `${API_URL}/decks/${deckId}/posters/${projectId}.jpg`;
+export const exportUrl = (url: string) => `${API_URL}${url}`;

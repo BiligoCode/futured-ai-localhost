@@ -66,6 +66,7 @@ export interface Project {
   captions: boolean;
   preview_outdated: boolean;
   final_outdated: boolean;
+  deck_id: string | null;
 }
 
 export interface EditSummary {
@@ -80,4 +81,81 @@ export interface EditSummary {
 export interface ReviseResult {
   project: Project;
   edits: EditSummary[];
+}
+
+// --- Slides ------------------------------------------------------------------------------------------------------
+
+export type EditOp = "replace" | "insert_after" | "delete" | "move";
+export type AnimationStatus = "draft" | "creating" | "ready" | "missing";
+export type EmbedMode = "append" | "new_after" | "new_end";
+export type ExportFormat = "pdf" | "docx";
+
+export interface Slide {
+  id: string;
+  html: string;
+  video: string | null;
+}
+
+export interface EditLog {
+  op: EditOp;
+  slide_id: string;
+  title: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  edits: EditLog[];
+  at: string;
+}
+
+export interface AnimationRef {
+  project_id: string;
+  title: string;
+  status: AnimationStatus;
+  cut: CutKind | null;
+  version: number;
+  duration: number;
+  embedded: boolean;
+}
+
+export interface Deck {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  title: string;
+  language: Language;
+  slides: Slide[];
+  chat: ChatMessage[];
+  version: number;
+  animations: AnimationRef[];
+}
+
+export interface DeckSummary {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  title: string;
+  language: Language;
+  slide_count: number;
+  animation_count: number;
+  first_slide_html: string;
+}
+
+export interface SlideIn {
+  id: string | null;
+  html: string;
+  video: string | null;
+}
+
+export interface DeckUpdate {
+  title: string;
+  slides: SlideIn[];
+  version: number;
+}
+
+export interface ChatResult {
+  deck: Deck;
+  reply: string;
+  edits: EditLog[];
 }
