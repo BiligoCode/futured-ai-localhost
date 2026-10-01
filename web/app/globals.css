@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./slide.css";
 
 /*
  * Lara's palette: lecture-hall ink and paper for the interface, Manim's own colours for the video stage.
