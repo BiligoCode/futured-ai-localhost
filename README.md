@@ -1,14 +1,18 @@
 # Lara — Learning Assessment & Resource Automation
 
-Two kinds of teaching material, Greek and English:
+Teaching material and the grading of exams, in Greek and English, from one dashboard (**Overview**, **Animations**,
+**Slides**, **Assessments** in the sidebar):
 
 - **Animation** — name a concept (optionally with your course material), and Lara drafts a script, writes and
   renders a [Manim](https://www.manim.community/) animation for it, and narrates it with an AI voice or your own voice.
 - **Slides** — write 16:9 lecture slides in a rich-text editor with Lara beside you in a chat: ask questions, have
   her write or correct text, change the formatting — in any mix, from one message. Embed your animations, export
   to PDF or Word.
+- **Assessments** — upload the students' exam papers or projects (scanned or typed PDFs, photos). Lara reads them,
+  grades questions with a definitive answer exactly, suggests marks and feedback for open questions, summarises each
+  paper and the class, and reports copying, AI-use and document signals for you to review.
 
-**New material** opens the chooser between the two.
+**New** opens the chooser between the three. The **Overview** shows counts, what is in progress and the newest work.
 
 ## Animation
 
@@ -76,11 +80,59 @@ data/decks/<id>/posters/       stills of embedded animations
 data/decks/<id>/export/        the last PDF / Word / zip
 ```
 
+## Assessments
+
+**Flow:** Setup (title, course, feedback language, grade scale 0–10/0–20/0–100, the exam paper with its answer key —
+optional, typed or scanned — grading instructions, and the papers: one file per student, or one batch PDF split every
+N pages) → Lara reads the papers right away and drafts the **rubric** (questions, points, keys, criteria for open
+questions) from the exam paper, or from the first papers when there is none → you check the rubric and **Save &
+grade** → marks, summaries and the class analysis.
+
+- **Reading.** Typed pages are read from their visible text; scanned pages by a vision model
+  (`AWS_BEDROCK_VISION_MODEL`, Qwen3-VL) that only transcribes — never judges, never sees the key. Crossed-out text,
+  unreadable characters and circled options are kept in the transcript.
+- **Exact where the answer is definitive.** For true/false (Σ/Λ, T/F…), multiple choice (Greek or Latin letters,
+  or the option written out), numbers (decimal comma, fractions, 1.000 vs 1,000, units) and short answers, the model
+  only *extracts* what the student wrote and code compares it with the key. A second vision model
+  (`AWS_BEDROCK_VERIFY_MODEL`, Kimi K2.5) reads every definitive answer on a scan again; when the readings differ the
+  question is flagged and both readings are one click away.
+- **Open questions** are scored per rubric criterion (met / half / not met) with feedback, at temperature 0.
+- **Review.** Every mark, reading and comment can be changed; nothing is final until a paper is **marked reviewed**.
+  Papers that need a look (unclear readings, keys Lara proposed, strong integrity signals, document alerts) are
+  counted and filtered. `[` and `]` step through papers.
+- **Copying score /100**, judged against the whole class: rare shared passages, identical *wrong* answers beyond what
+  chance explains (being wrong together is not evidence; giving the same rare wrong answer is), the same unusual
+  mistakes or examples (grouped per open question by the model, plus the same example values found in code),
+  near-identical handwriting layout on scans, the same file, document ID or author. The strongest pairs are re-read
+  side by side; the model quotes what both papers share and Lara keeps only quotes it finds in both. **Likely**
+  needs strong evidence or two independent coincidences — one shared example is "worth a look". **Compare** shows
+  two papers question by question with the shared passages and quotes highlighted.
+- **AI-likeness score /100**, from explained signals: chatbot leftovers, ChatGPT citation markers, invisible
+  characters, AI-typical vocabulary (English and Greek), em dashes on typed text, formulaic phrasing, answers far
+  longer and more elaborate than the class, and the model's own reading relative to the class. Short handwritten
+  answers are "too little text to judge". Shown as signals for a conversation, never as proof.
+- **Document checks:** metadata, producer, revisions, digital signatures, camera EXIF, C2PA/AI-image provenance,
+  homoglyphs, and **hidden text** (white, invisible, 1-pt or off-page text — found by comparing the text layer with the
+  rendered page) — hidden text is reported and never reaches the grader.
+- **Exports:** Excel (.xlsx), CSV (UTF-8, for an LMS) and a PDF report (class summary, then one page per student).
+- **Pause / resume**, **Retry** for a failed paper, adding papers later, re-grading after a rubric change (your marks
+  on unchanged questions are kept). A restarted API picks up where it stopped.
+
 ```
-api/   FastAPI service: Bedrock LLM, Manim rendering, ElevenLabs TTS, ffmpeg, WeasyPrint / python-docx exports
+data/assessments/<id>/assessment.json   settings, rubric, one row per paper
+data/assessments/<id>/analysis.json     the class analysis (pairs, clusters, insights)
+data/assessments/<id>/exam/, exam.txt   the exam paper / answer key
+data/assessments/<id>/papers/<pid>/     source file, paper.json (reading, results, forensics), pages/
+```
+
+Design, research and evaluation notes: `docs/assessments/`.
+
+```
+api/   FastAPI service: Bedrock LLM, Manim rendering, ElevenLabs TTS, ffmpeg, WeasyPrint / python-docx exports,
+       assessments (pypdfium2, pypdf, Pillow, openpyxl)
 web/   Next.js dashboard (TipTap slide editor)
-data/  projects and decks on disk (git-ignored)
-docs/  design specs and implementation plans (docs/slides/ for the slides feature)
+data/  projects, decks and assessments on disk (git-ignored)
+docs/  design specs and implementation plans (docs/slides/, docs/assessments/)
 ```
 
 ## Prerequisites
@@ -101,6 +153,10 @@ docs/  design specs and implementation plans (docs/slides/ for the slides featur
 | `ELEVENLABS_VOICE_ID_EL` / `ELEVENLABS_VOICE_ID_EN` | — | A voice per video language (a native Greek voice reads Greek best) |
 | `ELEVENLABS_MODEL` | `eleven_multilingual_v2` | e.g. `eleven_v4` (tested with Greek, `language_code` and caption timestamps); models other than multilingual v2 also get `language_code` |
 | `ELEVENLABS_SPEED` / `_STABILITY` / `_SIMILARITY` / `_STYLE` | — | Optional `voice_settings`, e.g. `ELEVENLABS_SPEED=0.95` for teaching |
+| `AWS_BEDROCK_VISION_MODEL` | `qwen.qwen3-vl-235b-a22b` | Reads scanned papers (and scanned exam papers) |
+| `AWS_BEDROCK_VERIFY_MODEL` | `moonshotai.kimi-k2.5` | Second reading of definitive answers on scans; set empty to switch off |
+| `AWS_BEDROCK_GRADING_MODEL` | — | Grading, rubric drafting and class analysis; empty = `AWS_BEDROCK_MODEL` (GLM-5 won the grading bake-off) |
+| `GRADING_CONCURRENCY` | `6` | Simultaneous model calls of the grading pipeline |
 | `RENDER_QUALITY` | `m` | `m` = 720p30, `l` = 480p15 (faster while developing) |
 | `DATA_DIR` | `<repo>/data` | |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated dashboard origins |
@@ -138,6 +194,18 @@ cd web && node qa/deck-export.mjs <deckId>      # PDF and Word downloads
 ```
 
 Prompt check for the slides assistant: `cd api && uv run python scripts/try_deck_chat.py`.
+
+Assessments against the real models: generate a Greek test class with known answers (handwritten scans in four
+hands, typed papers, a verbatim and a paraphrased copy, an AI-written paper, hidden text) and score the pipeline:
+
+```bash
+cd api && uv run python scripts/make_exam_class.py /tmp/class [--extra 24]  # + N students for a scale test
+cd api && uv run python scripts/eval_assessment.py /tmp/class [--grader zai.glm-5] [--no-exam] [--language en]
+cd api && uv run python scripts/rerun_analysis.py <data dir> <assessmentId>  # only the class analysis again
+cd web && node qa/assess-flow.mjs /tmp/class [web] [api]      # the whole flow in the browser
+cd web && node qa/assess-screens.mjs <assessmentId> [web] [out] [el|en]
+cd web && node qa/overflow.mjs <assessmentId> <paperId> [web]  # horizontal overflow at phone width
+```
 
 ## Pitch fallback
 
