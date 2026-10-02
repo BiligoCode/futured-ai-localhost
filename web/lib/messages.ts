@@ -117,6 +117,11 @@ const en = {
   embedReplaces: "This slide already has an animation; it will be replaced.",
   embedConfirm: "Add",
   adding: "Adding…",
+  importAnimation: "Import animation",
+  importTitle: "Import an existing animation",
+  importHint: "Any of your finished animations, including ones not made from these slides.",
+  importEmpty: "No finished animations yet. An animation can be imported once its video is ready.",
+  importCurrentSlide: (label: string) => `Current slide: ${label}`,
 
   // Export
   export: "Export",
@@ -409,6 +414,11 @@ const el: Messages = {
   embedReplaces: "Αυτή η διαφάνεια έχει ήδη κινούμενη εικόνα· θα αντικατασταθεί.",
   embedConfirm: "Προσθήκη",
   adding: "Προσθήκη…",
+  importAnimation: "Εισαγωγή κινούμενης εικόνας",
+  importTitle: "Εισαγωγή υπάρχουσας κινούμενης εικόνας",
+  importHint: "Οποιαδήποτε ολοκληρωμένη κινούμενη εικόνα σας, ακόμα κι αν δεν φτιάχτηκε από αυτές τις διαφάνειες.",
+  importEmpty: "Δεν υπάρχουν ακόμα ολοκληρωμένες κινούμενες εικόνες. Μια κινούμενη εικόνα μπορεί να εισαχθεί μόλις ετοιμαστεί το βίντεό της.",
+  importCurrentSlide: (label) => `Τρέχουσα διαφάνεια: ${label}`,
 
   export: "Εξαγωγή",
   preparingExport: "Προετοιμασία…",

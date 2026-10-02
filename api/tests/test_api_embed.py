@@ -51,6 +51,21 @@ async def test_embed_append_new_after_new_end(setup):
         assert len(v["slides"]) == 3 and v["slides"][2]["video"] == ready.id and v["slides"][2]["html"] == "<h2>Φυσαλίδα</h2>"
 
 
+async def test_embed_imports_an_animation_from_elsewhere(setup):
+    """"Import animation": a finished project made outside this deck can be embedded; it stays unlinked."""
+    app, poster, deck, _ = setup
+    other_deck = app.state.decks.create(title="Γράφοι", language="el", material_text="")
+    for deck_id in (None, other_deck.id):
+        outside = make_project(app, deck_id=deck_id, stage="scenes", preview=Cut(status="done", version=1, duration=8.0))
+        (app.state.store.project_dir(outside.id) / "preview.mp4").write_bytes(b"mp4")
+        async with api_client(app) as c:
+            r = await c.post(f"/decks/{deck.id}/embed", json={"project_id": outside.id, "mode": "new_end"})
+            assert r.status_code == 200, r.text
+            v = r.json()
+        assert v["slides"][-1]["video"] == outside.id
+        assert next(a for a in v["animations"] if a["project_id"] == outside.id)["embedded"] is True
+        assert app.state.store.get(outside.id).deck_id == deck_id
+
 async def test_embed_replaces_existing_video_on_slide(setup):
     app, poster, deck, ready = setup
     other = make_project(app, deck_id=deck.id, stage="scenes", preview=Cut(status="done", version=1, duration=4.0),

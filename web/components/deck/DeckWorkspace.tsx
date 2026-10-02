@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { ApiError, chatDeck, deleteDeck, getDeck, saveDeck, saveDeckOnLeave } from "@/lib/api";
+import { ApiError, chatDeck, deleteDeck, embedAnimation, getDeck, saveDeck, saveDeckOnLeave } from "@/lib/api";
 import { mergeChatResult, undoChatEdits } from "@/lib/deckMerge";
 import { useI18n } from "@/lib/i18n";
 import { slideTitle } from "@/lib/slideHtml";
-import type { AnimationRef, ChatMessage, Deck, EditLog, Slide } from "@/lib/types";
+import type { AnimationRef, ChatMessage, Deck, EditLog, EmbedMode, Slide } from "@/lib/types";
 import { useDeckSplit } from "@/lib/useDeckSplit";
 
 import { AnimationsMenu } from "./AnimationsMenu";
 import { DeckChat } from "./DeckChat";
 import { ExportMenu } from "./ExportMenu";
+import { ImportAnimationDialog } from "./ImportAnimationDialog";
 import { SlideEditor } from "./SlideEditor";
 import { SlideStrip } from "./SlideStrip";
 import { SlideToolbar } from "./SlideToolbar";
@@ -55,6 +56,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   const [chatBusy, setChatBusy] = useState(false);
   const [undo, setUndo] = useState<{ snapshot: Slide[]; edits: EditLog[] } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null); // a freshly added slide takes the cursor
+  const [importing, setImporting] = useState(false);
   const [ratio, setRatio] = useDeckSplit();
   const panes = useRef<HTMLDivElement>(null);
 
@@ -323,6 +325,21 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
     router.push(`/new/animation?deck=${deck.id}`);
   }
 
+  /** Embed a finished animation relative to the active slide. Throws so the dialog can show the error. */
+  async function importAnimation(projectId: string, mode: EmbedMode) {
+    await flushSave();
+    const before = new Set(latest.current.slides.map((s) => s.id));
+    const fresh = await embedAnimation(deck.id, { project_id: projectId, slide_id: mode === "new_end" ? null : activeId, mode });
+    // Keep anything typed since the flush, as after a 409.
+    const typed = new Map(latest.current.slides.filter((s) => dirtySlides.current.has(s.id)).map((s) => [s.id, s.html]));
+    changes.current += 1;
+    update(() => ({ ...fromDeck(fresh), slides: fresh.slides.map((s) => (typed.has(s.id) ? { ...s, html: typed.get(s.id)! } : s)) }));
+    setSaveState(typed.size ? "dirty" : "saved");
+    setImporting(false);
+    const target = mode === "append" ? activeId : fresh.slides.find((s) => !before.has(s.id))?.id;
+    if (target) setTimeout(() => jumpTo(target), 50);
+  }
+
   // --- divider ----------------------------------------------------------------------------------------------------
 
   function onDividerPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -340,6 +357,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   };
   const activeSlide = activeId ? { id: activeId, label: t.slideN(doc.slides.findIndex((s) => s.id === activeId) + 1) } : null;
   const activeEditor = activeId ? (editors.get(activeId) ?? null) : null;
+  const closeImport = useCallback(() => setImporting(false), []);
   const linkedCount = doc.animations.filter((a) => a.status !== "missing").length;
   const saveLabel = saveState === "saving" ? t.saving : saveState === "saved" ? t.saved : saveState === "dirty" ? t.unsaved : t.saveFailedShort;
 
@@ -389,6 +407,10 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
           <button type="button" onClick={() => void createAnimation()} className="btn btn-secondary">
             <Icon name="film" size={16} />
             {t.createAnimation}
+          </button>
+          <button type="button" onClick={() => setImporting(true)} className="btn btn-secondary">
+            <Icon name="download" size={16} />
+            {t.importAnimation}
           </button>
           <ExportMenu
             deckId={deck.id}
@@ -500,6 +522,15 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
           />
         </aside>
       </div>
+
+      {importing && (
+        <ImportAnimationDialog
+          activeLabel={activeId ? labelOf(activeId) : null}
+          activeHasVideo={!!doc.slides.find((s) => s.id === activeId)?.video}
+          onImport={importAnimation}
+          onClose={closeImport}
+        />
+      )}
 
       {removed && (
         <div role="status" className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-ink px-4 py-2.5 text-sm text-white shadow-lg">
