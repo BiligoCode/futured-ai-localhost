@@ -47,6 +47,32 @@ EXACT = {
     "Poster not found": "Η εικόνα δεν βρέθηκε",
     "Export not found": "Το αρχείο εξαγωγής δεν βρέθηκε",
     "Please give the slides a title": "Δώστε έναν τίτλο στις διαφάνειες",
+    # Assessments
+    "Assessment not found": "Η αξιολόγηση δεν βρέθηκε",
+    "Paper not found": "Το γραπτό δεν βρέθηκε",
+    "Page not found": "Η σελίδα δεν βρέθηκε",
+    "Please give the assessment a title": "Δώστε έναν τίτλο στην αξιολόγηση",
+    "The grade scale must be 10, 20 or 100": "Η κλίμακα βαθμολογίας πρέπει να είναι 10, 20 ή 100",
+    "Upload at most 10 files for the exam paper": "Ανεβάστε έως 10 αρχεία για το θέμα της εξέτασης",
+    "The exam paper must be PDF, JPG or PNG files": "Το θέμα της εξέτασης πρέπει να είναι αρχεία PDF, JPG ή PNG",
+    "Split every 1 to 40 pages": "Ο διαχωρισμός γίνεται ανά 1 έως 40 σελίδες",
+    "Upload at most 120 files at a time": "Ανεβάστε έως 120 αρχεία τη φορά",
+    "Already uploaded": "Έχει ήδη ανέβει",
+    "The file is larger than 50 MB": "Το αρχείο είναι μεγαλύτερο από 50 MB",
+    "Only PDF, JPG and PNG files can be graded": "Βαθμολογούνται μόνο αρχεία PDF, JPG και PNG",
+    "Could not read the file": "Δεν ήταν δυνατή η ανάγνωση του αρχείου",
+    "The PDF is password-protected": "Το PDF προστατεύεται με κωδικό",
+    "The PDF has no pages": "Το PDF δεν έχει σελίδες",
+    "This paper has more than 40 pages": "Το γραπτό έχει περισσότερες από 40 σελίδες",
+    "This question has no result yet": "Αυτή η ερώτηση δεν έχει ακόμα αποτέλεσμα",
+    "Only a paper that failed can be retried": "Μόνο ένα γραπτό που απέτυχε μπορεί να ξαναδοκιμαστεί",
+    "Lara is already drafting the rubric": "Η Lara ετοιμάζει ήδη το κλειδί βαθμολόγησης",
+    "Add the exam paper or wait until a paper has been read":
+        "Προσθέστε το θέμα της εξέτασης ή περιμένετε να διαβαστεί ένα γραπτό",
+    "The class analysis needs at least two graded papers":
+        "Η ανάλυση της τάξης χρειάζεται τουλάχιστον δύο βαθμολογημένα γραπτά",
+    "Add at least one question before grading": "Προσθέστε τουλάχιστον μία ερώτηση πριν από τη βαθμολόγηση",
+    "Interrupted by server restart": "Διακόπηκε από επανεκκίνηση του διακομιστή",
 }
 
 PREFIXES = {
@@ -58,6 +84,17 @@ PREFIXES = {
     "ElevenLabs returned an unexpected response: ": "Το ElevenLabs επέστρεψε απρόσμενη απάντηση: ",
     "Export failed: ": "Η εξαγωγή απέτυχε: ",
     "Could not take a still from the animation: ": "Δεν ήταν δυνατή η λήψη καρέ από την κινούμενη εικόνα: ",
+    # Assessments
+    "Two questions have the same label: ": "Δύο ερωτήσεις έχουν την ίδια ετικέτα: ",
+    "Choose whether the answer is true or false for question: ":
+        "Επιλέξτε αν η απάντηση είναι «Σωστό» ή «Λάθος» στην ερώτηση: ",
+    "Give the correct option for question: ": "Δώστε τη σωστή επιλογή για την ερώτηση: ",
+    "Give the correct number for question: ": "Δώστε τον σωστό αριθμό για την ερώτηση: ",
+    "Give the expected answer for question: ": "Δώστε την αναμενόμενη απάντηση για την ερώτηση: ",
+    "The criteria do not add up to the points of question: ": "Τα κριτήρια δεν αθροίζουν στις μονάδες της ερώτησης: ",
+    "Reading the paper failed: ": "Η ανάγνωση του γραπτού απέτυχε: ",
+    "Grading failed: ": "Η βαθμολόγηση απέτυχε: ",
+    "Could not draft a rubric: ": "Δεν ήταν δυνατή η σύνταξη κλειδιού βαθμολόγησης: ",
 }
 
 

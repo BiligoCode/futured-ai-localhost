@@ -14,7 +14,7 @@ _FONT_FACES = [
 ]
 
 
-def _font_css() -> str:
+def font_css() -> str:
     rules = []
     for family, file, style in _FONT_FACES:
         path = FONTS / file
@@ -51,7 +51,7 @@ def render_html(deck: Deck, animations: list[AnimationRef], posters: dict[str, P
         '<!doctype html><html><head><meta charset="utf-8"><style>'
         "@page { size: 1280px 720px; margin: 0 }\n"
         "body { margin: 0 }\n"
-        f"{_font_css()}\n{(ASSETS / 'slide.css').read_text(encoding='utf-8')}\n"
+        f"{font_css()}\n{(ASSETS / 'slide.css').read_text(encoding='utf-8')}\n"
         # Print-only, after the shared stylesheet so it wins. WeasyPrint fragments in-flow boxes across pages even
         # with overflow: hidden, but never absolutely positioned ones: the text box (600px of content height, 204px
         # above a poster figure) and the figure are positioned inside the slide, so a slide is always one page.

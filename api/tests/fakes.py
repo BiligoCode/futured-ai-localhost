@@ -77,3 +77,33 @@ STORYBOARD_JSON = json.dumps({
          "narration": "Επαναλαμβάνοντας, φτάνουμε κοντά στο ελάχιστο."},
     ],
 }, ensure_ascii=False)
+
+
+class FnLLM:
+    """A text model answered by a function of (system, messages); records the calls."""
+
+    def __init__(self, fn):
+        self.fn = fn
+        self.calls: list[tuple[str, list[dict]]] = []
+
+    def __call__(self, system: str, messages: list[dict]) -> str:
+        self.calls.append((system, [dict(m) for m in messages]))
+        reply = self.fn(system, messages)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+class FnVision:
+    """A vision model answered by a function of (system, prompt, images); records the calls."""
+
+    def __init__(self, fn):
+        self.fn = fn
+        self.calls: list[tuple[str, str, int]] = []
+
+    def __call__(self, system: str, prompt: str, images: list[bytes]) -> str:
+        self.calls.append((system, prompt, len(images)))
+        reply = self.fn(system, prompt, images)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
