@@ -166,7 +166,8 @@ async def test_delete_project_while_rendering(tmp_path):
         await c.post(f"/projects/{p['id']}/render")
         await asyncio.sleep(0.05)
         r = await c.delete(f"/projects/{p['id']}")
-        assert r.status_code == 204
+        assert r.status_code == 204 and r.content == b""
+        assert "json" not in r.headers.get("content-type", "")
         assert (await c.get(f"/projects/{p['id']}")).status_code == 404
         assert (await c.get("/projects")).json() == []
         assert (await c.delete(f"/projects/{p['id']}")).status_code == 404

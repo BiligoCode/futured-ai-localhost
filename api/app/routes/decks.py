@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.deck_chat import DeckChatError, apply_edits, run_chat
 from app.deck_export import MEDIA_TYPES, export_deck
@@ -90,7 +90,7 @@ async def update_deck(deck_id: str, body: DeckUpdate, request: Request) -> DeckV
 
 
 @router.delete("/decks/{deck_id}", status_code=204)
-async def delete_deck(deck_id: str, request: Request) -> None:
+async def delete_deck(deck_id: str, request: Request) -> Response:
     """Removes the slides only: animations made from them are kept and simply unlinked."""
     store, decks = request.app.state.store, request.app.state.decks
     decks.get(deck_id)
@@ -98,6 +98,7 @@ async def delete_deck(deck_id: str, request: Request) -> None:
         if project.deck_id == deck_id:
             await store.mutate(project.id, lambda p: setattr(p, "deck_id", None))
     await decks.delete(deck_id)
+    return Response(status_code=204)
 
 
 @router.post("/decks/{deck_id}/chat")

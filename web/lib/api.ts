@@ -38,14 +38,19 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let detail: unknown = res.statusText;
     try {
-      detail = (await res.json()).detail;
+      const text = await res.text();
+      if (text) detail = JSON.parse(text).detail;
     } catch {
       /* non-JSON error body */
     }
     throw new ApiError(res.status, describe(detail));
   }
+  // 204 No Content has an empty body. Parsing it as JSON throws.
+  if (res.status === 204) return undefined as T;
   const type = res.headers.get("content-type") ?? "";
-  return (type.includes("application/json") ? res.json() : res.text()) as Promise<T>;
+  if (!type.includes("application/json")) return (await res.text()) as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const json = (method: string, body: unknown): RequestInit => ({
@@ -58,7 +63,17 @@ export const listProjects = () => request<Project[]>("/projects");
 export const getProject = (id: string) => request<Project>(`/projects/${id}`);
 export const createProject = (form: FormData, signal?: AbortSignal) =>
   request<Project>("/projects", { method: "POST", body: form, signal });
-export const deleteProject = (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" });
+/** Delete is done when the server says so, and also when it is already gone. */
+async function remove(path: string): Promise<void> {
+  try {
+    await request<void>(path, { method: "DELETE" });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return;
+    throw e;
+  }
+}
+
+export const deleteProject = (id: string) => remove(`/projects/${id}`);
 export const getMaterial = (id: string) => request<string>(`/projects/${id}/material`);
 export const reopenScript = (id: string) => request<Project>(`/projects/${id}/reopen`, { method: "POST" });
 export const cancelProject = (id: string) => request<Project>(`/projects/${id}/cancel`, { method: "POST" });
@@ -104,7 +119,7 @@ export const saveDeck = (id: string, body: DeckUpdate) => request<Deck>(`/decks/
 export const saveDeckOnLeave = (id: string, body: DeckUpdate) => {
   void fetch(`${API_URL}/decks/${id}`, { ...json("PUT", body), keepalive: true, headers: { "Content-Type": "application/json", "X-Lara-Lang": uiLang() } }).catch(() => undefined);
 };
-export const deleteDeck = (id: string) => request<void>(`/decks/${id}`, { method: "DELETE" });
+export const deleteDeck = (id: string) => remove(`/decks/${id}`);
 export const chatDeck = (
   id: string,
   body: { message: string; slide_id: string | null; selection: string | null },

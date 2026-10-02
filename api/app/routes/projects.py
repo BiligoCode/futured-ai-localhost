@@ -1,7 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 
 from app.ingest import MAX_MATERIAL_CHARS, EmptyMaterialError, build_material
 from app.models import DurationRange, Language, Project, ProjectSettings, Scene, StoryboardUpdate
@@ -98,9 +98,12 @@ async def _delete(app, project_id: str) -> None:
 
 
 @router.delete("/projects/{project_id}", status_code=204)
-async def delete_project(project_id: str, request: Request) -> None:
+async def delete_project(project_id: str, request: Request) -> Response:
     request.app.state.store.get(project_id)
     await _delete(request.app, project_id)
+    # Return a real empty response. The default JSON response keeps Content-Type: application/json
+    # on a 204, and the browser then fails trying to parse a body that is not there.
+    return Response(status_code=204)
 
 
 @router.post("/projects/{project_id}/reopen")

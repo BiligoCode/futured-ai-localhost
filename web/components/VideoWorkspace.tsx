@@ -315,7 +315,7 @@ export function VideoWorkspace({ project, onChange }: { project: Project; onChan
               type="button"
               onClick={() => setRecordFrom(firstStart)}
               disabled={recordDisabled}
-              className="btn btn-record w-full justify-start gap-3 px-4 py-3 text-left"
+              className="btn btn-primary w-full justify-start gap-3 px-4 py-3 text-left"
             >
               <Icon name="mic" size={20} className="shrink-0" />
               <span>

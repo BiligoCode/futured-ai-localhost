@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 
@@ -18,6 +18,7 @@ export default function ProjectPage() {
   const router = useRouter();
   const { project, error, setProject } = useProject(id);
   const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [scriptDirty, setScriptDirty] = useState(false);
   const [goingBack, setGoingBack] = useState(false);
@@ -41,7 +42,8 @@ export default function ProjectPage() {
   }
 
   async function onDelete() {
-    if (!project || !window.confirm(t.confirmDelete(project.title))) return;
+    if (!project || deletingRef.current || !window.confirm(t.confirmDelete(project.title))) return;
+    deletingRef.current = true;
     setDeleting(true);
     setDeleteError(null);
     try {
@@ -49,6 +51,7 @@ export default function ProjectPage() {
       router.push("/");
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : String(e));
+      deletingRef.current = false;
       setDeleting(false);
     }
   }

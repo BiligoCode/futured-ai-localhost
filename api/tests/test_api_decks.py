@@ -104,7 +104,8 @@ async def test_delete_deck_clears_deck_id_on_projects(tmp_path):
         p = make_project(app, deck_id=d["id"])
         assert app.state.store.get(p.id).deck_id == d["id"]
         r = await c.delete(f"/decks/{d['id']}")
-        assert r.status_code == 204
+        assert r.status_code == 204 and r.content == b""
+        assert "json" not in r.headers.get("content-type", "")
         assert app.state.store.get(p.id).deck_id is None
         assert (await c.get(f"/decks/{d['id']}")).status_code == 404
 

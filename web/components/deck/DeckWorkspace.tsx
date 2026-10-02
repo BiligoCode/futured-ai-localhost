@@ -64,6 +64,7 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
   const latest = useRef(doc);
   const unsaved = useRef(false);
   const changes = useRef(0);
+  const deletingRef = useRef(false);
   const dirtySlides = useRef(new Set<string>()); // slides typed in since the last successful save
   const saving = useRef<Promise<void> | null>(null);
   useEffect(() => {
@@ -304,13 +305,15 @@ export function DeckWorkspace({ deck }: { deck: Deck }) {
 
   async function onDelete() {
     const linked = doc.animations.filter((a) => a.status !== "missing").length;
-    if (!window.confirm(t.confirmDeleteDeck(doc.title, linked))) return;
+    if (deletingRef.current || !window.confirm(t.confirmDeleteDeck(doc.title, linked))) return;
+    deletingRef.current = true;
     try {
       await deleteDeck(deck.id);
       changes.current = 0;
       setSaveState("saved");
       router.push("/");
     } catch (e) {
+      deletingRef.current = false;
       setNotice(e instanceof Error ? e.message : String(e));
     }
   }

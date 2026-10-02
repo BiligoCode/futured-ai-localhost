@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DeckTile } from "@/components/deck/DeckTile";
 import { Icon } from "@/components/Icon";
@@ -110,26 +110,36 @@ export default function Dashboard() {
   const { t } = useI18n();
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const deleting = useRef(new Set<string>());
 
   async function onDelete(p: Project) {
-    if (!window.confirm(t.confirmDelete(p.title))) return;
+    if (deleting.current.has(p.id) || !window.confirm(t.confirmDelete(p.title))) return;
+    deleting.current.add(p.id);
+    setActionError(null);
     try {
       await deleteProject(p.id);
       setItems((prev) => prev?.filter((i) => !(i.kind === "project" && i.p.id === p.id)) ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      deleting.current.delete(p.id);
     }
   }
 
   async function onDeleteDeck(d: DeckSummary) {
-    if (!window.confirm(t.confirmDeleteDeck(d.title, d.animation_count))) return;
+    if (deleting.current.has(d.id) || !window.confirm(t.confirmDeleteDeck(d.title, d.animation_count))) return;
+    deleting.current.add(d.id);
+    setActionError(null);
     try {
       await deleteDeck(d.id);
       // The deck's animations stay, now unlinked.
       setItems((prev) => prev?.filter((i) => !(i.kind === "deck" && i.d.id === d.id))
         .map((i) => (i.kind === "project" && i.p.deck_id === d.id ? { kind: "project", p: { ...i.p, deck_id: null } } : i)) ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      deleting.current.delete(d.id);
     }
   }
 
@@ -153,6 +163,11 @@ export default function Dashboard() {
       {error && (
         <p className="notice notice-error" role="alert">
           {t.loadError(error)}
+        </p>
+      )}
+      {actionError && (
+        <p className="notice notice-error" role="alert">
+          {actionError}
         </p>
       )}
       {!items && !error && (
