@@ -9,7 +9,7 @@ import type { DeckSummary } from "@/lib/types";
 import { SlideThumb } from "./SlideThumb";
 
 /** A deck on the dashboard: its first slide, small, on paper rather than on the dark stage. */
-export function DeckTile({ d, onDelete }: { d: DeckSummary; onDelete: (d: DeckSummary) => void }) {
+export function DeckTile({ d, onDelete }: { d: DeckSummary; onDelete?: (d: DeckSummary) => void }) {
   const { t } = useI18n();
   return (
     <li className="group/tile relative">
@@ -35,15 +35,17 @@ export function DeckTile({ d, onDelete }: { d: DeckSummary; onDelete: (d: DeckSu
           {t.statusSlides}
         </p>
       </Link>
-      <button
-        type="button"
-        aria-label={t.deleteDeckLabel(d.title)}
-        title={t.deleteDeck}
-        onClick={() => onDelete(d)}
-        className="absolute top-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-md bg-black/60 text-white transition-opacity hover:bg-black/80 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
-      >
-        <Icon name="trash" size={16} />
-      </button>
+      {onDelete && (
+        <button
+          type="button"
+          aria-label={t.deleteDeckLabel(d.title)}
+          title={t.deleteDeck}
+          onClick={() => onDelete(d)}
+          className="absolute top-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-md bg-black/60 text-white transition-opacity hover:bg-black/80 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
+        >
+          <Icon name="trash" size={16} />
+        </button>
+      )}
     </li>
   );
 }

@@ -33,6 +33,19 @@
   --color-rec-soft: #fbe9e9;
   --color-danger-ink: #9d2727;
 
+  /* Marks and status (validated with the dataviz checks; always paired with an icon and a label). */
+  --color-good: #18864a;
+  --color-good-soft: #e5f2ea;
+  --color-warn: #c98418;
+  --color-warn-soft: #fbf1dd;
+  --color-critical: #c93838;
+  --color-critical-soft: #fbe9e9;
+  /* Similarity heat ramp, light to dark (one hue, monotone, light end clears the surface). */
+  --color-heat-1: #75b3ca;
+  --color-heat-2: #3f8fae;
+  --color-heat-3: #1b6f8c;
+  --color-heat-4: #0c3b4d;
+
   --color-stage: #0f141b;
   --color-stage-raised: #18202a;
   --color-stage-ink: #e7edf3;

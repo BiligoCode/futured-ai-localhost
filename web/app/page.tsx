@@ -1,182 +1,92 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 
+import { AssessmentTile } from "@/components/assess/AssessmentTile";
 import { DeckTile } from "@/components/deck/DeckTile";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
+import { ProjectTile } from "@/components/ProjectTile";
 import { CurveSketch } from "@/components/Stage";
-import { cutUrl, deleteDeck, deleteProject, listDecks, listProjects } from "@/lib/api";
+import { fmt } from "@/lib/assess";
 import { useI18n } from "@/lib/i18n";
-import type { Messages } from "@/lib/messages";
-import { clock } from "@/lib/time";
-import type { DeckSummary, Project } from "@/lib/types";
+import type { AssessmentSummary, DeckSummary, Project } from "@/lib/types";
+import { useLibrary } from "@/lib/useLibrary";
 
-type Item = { kind: "project"; p: Project } | { kind: "deck"; d: DeckSummary };
+type Item = { kind: "project"; at: string; p: Project } | { kind: "deck"; at: string; d: DeckSummary } | { kind: "assessment"; at: string; a: AssessmentSummary };
 
-type Status = { label: string; tone: "draft" | "busy" | "ready" | "done" };
+const RECENT = 6;
 
-function statusOf(p: Project, t: Messages): Status {
-  if (p.stage === "storyboard") return { label: t.statusDraft, tone: "draft" };
-  if (p.preview.version === 0) return { label: t.statusCreating, tone: "busy" };
-  if (p.final.version > 0) return { label: t.statusNarrated, tone: "done" };
-  return { label: t.statusReady, tone: "ready" };
-}
-
-const DOT = { draft: "bg-faint", busy: "bg-gold pulse-soft", ready: "bg-manim", done: "bg-accent" } as const;
-
-/** A still from inside the animation (Manim scenes open on an empty frame). */
-function Poster({ p }: { p: Project }) {
-  const cut = p.final.version > 0 ? "final" : "preview";
-  const at = Math.min(p[cut].duration * 0.3, 8) || 4;
+function QuickStart() {
+  const { t } = useI18n();
+  const items: { href: string; label: string; icon: IconName }[] = [
+    { href: "/new/animation", label: t.quickAnimation, icon: "film" },
+    { href: "/new/slides", label: t.quickSlides, icon: "slides" },
+    { href: "/new/assessment", label: t.quickAssessment, icon: "exam" },
+  ];
   return (
-    <video
-      src={`${cutUrl(p.id, cut, p[cut])}#t=${at.toFixed(1)}`}
-      preload="metadata"
-      muted
-      playsInline
-      tabIndex={-1}
-      aria-hidden="true"
-      className="absolute inset-0 h-full w-full object-cover"
-    />
+    <div className="flex flex-wrap gap-2">
+      {items.map((i) => (
+        <Link key={i.href} href={i.href} className="btn btn-secondary">
+          <Icon name={i.icon} size={16} className="text-accent" />
+          {i.label}
+        </Link>
+      ))}
+    </div>
   );
 }
 
-function ProjectTile({ p, onDelete }: { p: Project; onDelete: (p: Project) => void }) {
-  const { t } = useI18n();
-  const status = statusOf(p, t);
-  const hasVideo = p.stage !== "storyboard" && p.preview.version > 0;
-  const duration = hasVideo ? p[p.final.version > 0 ? "final" : "preview"].duration : 0;
+/** One line of the stats ledger: a figure and what it counts; links to the section. */
+function Stat({ value, label, href, tone }: { value: number; label: string; href: string; tone?: "warn" }) {
+  const { lang } = useI18n();
   return (
-    <li className="group/tile relative">
-      <Link
-        href={`/projects/${p.id}`}
-        className="group block rounded-xl focus-visible:outline-offset-4"
-      >
-        <div className="stage stage-grid aspect-video rounded-xl ring-1 ring-black/5 transition-[box-shadow] group-hover:shadow-[0_10px_30px_-12px_rgb(15_20_27/0.45)]">
-          {hasVideo ? (
-            <Poster p={p} />
-          ) : (
-            <div className="absolute inset-0 grid place-items-center p-6">
-              {status.tone === "busy" ? (
-                <CurveSketch className="w-3/4" />
-              ) : (
-                <p className="line-clamp-3 text-center font-serif text-lg leading-snug text-stage-muted italic">
-                  {p.concept}
-                </p>
-              )}
-            </div>
-          )}
-          {duration > 0 && (
-            <span className="absolute right-2.5 bottom-2.5 rounded bg-black/65 px-1.5 py-0.5 text-xs font-medium text-white tabular-nums">
-              {clock(duration)}
-            </span>
-          )}
-        </div>
-        <div className="mt-3 flex items-start justify-between gap-3 px-0.5">
-          <div className="min-w-0">
-            <h2 className="truncate font-serif text-xl leading-tight font-semibold group-hover:text-accent">{p.title}</h2>
-            <p className="mt-0.5 truncate text-sm text-muted">{p.concept}</p>
-          </div>
-          <span className="mt-1 flex shrink-0 items-center gap-2 text-xs font-semibold text-muted">
-            {p.deck_id && (
-              <span className="inline-flex items-center gap-1 rounded bg-sunken px-1.5 py-0.5 text-ink" title={t.fromSlides}>
-                <Icon name="slides" size={12} />
-                {t.chooseSlides}
-              </span>
-            )}
-            <span title={t.langName[p.language]}>{p.language === "el" ? "ΕΛ" : "EN"}</span>
-          </span>
-        </div>
-        <p className="mt-2 flex items-center gap-2 px-0.5 text-sm text-ink">
-          <span className={`h-2 w-2 rounded-full ${DOT[status.tone]}`} aria-hidden="true" />
-          {status.label}
-        </p>
-      </Link>
-      <button
-        type="button"
-        aria-label={t.deleteLabel(p.title)}
-        title={t.deleteVideo}
-        onClick={() => onDelete(p)}
-        className="absolute top-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-md bg-black/60 text-white transition-opacity hover:bg-black/80 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
-      >
-        <Icon name="trash" size={16} />
-      </button>
-    </li>
+    <Link href={href} className="group flex flex-col gap-1 px-5 py-4 hover:bg-paper focus-visible:outline-offset-[-2px]">
+      <span className="flex items-center gap-2 text-3xl leading-none font-semibold text-ink">
+        {fmt(value, lang, 0)}
+        {tone === "warn" && value > 0 && <span className="h-2 w-2 rounded-full bg-warn" aria-hidden="true" />}
+      </span>
+      <span className="text-sm text-muted group-hover:text-ink">{label}</span>
+    </Link>
   );
 }
 
-export default function Dashboard() {
-  const { t } = useI18n();
-  const [items, setItems] = useState<Item[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const deleting = useRef(new Set<string>());
+export default function Overview() {
+  const { t, lang } = useI18n();
+  const { projects, decks, assessments, error } = useLibrary();
+  const loaded = projects !== null && decks !== null && assessments !== null;
 
-  async function onDelete(p: Project) {
-    if (deleting.current.has(p.id) || !window.confirm(t.confirmDelete(p.title))) return;
-    deleting.current.add(p.id);
-    setActionError(null);
-    try {
-      await deleteProject(p.id);
-      setItems((prev) => prev?.filter((i) => !(i.kind === "project" && i.p.id === p.id)) ?? null);
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
-    } finally {
-      deleting.current.delete(p.id);
-    }
-  }
-
-  async function onDeleteDeck(d: DeckSummary) {
-    if (deleting.current.has(d.id) || !window.confirm(t.confirmDeleteDeck(d.title, d.animation_count))) return;
-    deleting.current.add(d.id);
-    setActionError(null);
-    try {
-      await deleteDeck(d.id);
-      // The deck's animations stay, now unlinked.
-      setItems((prev) => prev?.filter((i) => !(i.kind === "deck" && i.d.id === d.id))
-        .map((i) => (i.kind === "project" && i.p.deck_id === d.id ? { kind: "project", p: { ...i.p, deck_id: null } } : i)) ?? null);
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
-    } finally {
-      deleting.current.delete(d.id);
-    }
-  }
-
-  useEffect(() => {
-    Promise.all([listProjects(), listDecks()])
-      .then(([projects, decks]) => {
-        const all: Item[] = [...projects.map((p) => ({ kind: "project", p }) as Item), ...decks.map((d) => ({ kind: "deck", d }) as Item)];
-        const at = (i: Item) => (i.kind === "project" ? i.p.created_at : i.d.created_at);
-        setItems(all.sort((a, b) => at(b).localeCompare(at(a))));
-      })
-      .catch((e) => setError(e.message));
-  }, []);
+  const items: Item[] = loaded
+    ? [
+        ...projects.map((p) => ({ kind: "project" as const, at: p.created_at, p })),
+        ...decks.map((d) => ({ kind: "deck" as const, at: d.updated_at, d })),
+        ...assessments.map((a) => ({ kind: "assessment" as const, at: a.updated_at, a })),
+      ].sort((x, y) => y.at.localeCompare(x.at))
+    : [];
+  const graded = (assessments ?? []).reduce((s, a) => s + a.graded, 0);
+  const toReview = (assessments ?? []).reduce((s, a) => s + a.needs_review, 0);
+  const working = [
+    ...(assessments ?? []).filter((a) => a.busy || (a.papers > 0 && a.rubric_status !== "confirmed")),
+  ];
+  const creating = (projects ?? []).filter((p) => p.stage === "scenes" && p.preview.version === 0);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">{t.yourMaterials}</h1>
-        <p className="mt-2 text-lg text-muted">{t.dashSubtitle}</p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-10">
+      <PageHeader title={t.overviewTitle} subtitle={t.overviewSubtitle}>
+        <QuickStart />
+      </PageHeader>
 
       {error && (
         <p className="notice notice-error" role="alert">
           {t.loadError(error)}
         </p>
       )}
-      {actionError && (
-        <p className="notice notice-error" role="alert">
-          {actionError}
-        </p>
-      )}
-      {!items && !error && (
+      {!loaded && !error && (
         <p className="text-muted" aria-live="polite">
           {t.loading}
         </p>
       )}
 
-      {items?.length === 0 && (
+      {loaded && items.length === 0 && (
         <div className="stage stage-grid grid gap-8 rounded-2xl px-6 py-12 sm:grid-cols-[1fr_minmax(0,22rem)] sm:items-center sm:px-12">
           <div className="max-w-md space-y-4">
             <h2 className="font-serif text-3xl leading-tight font-semibold">{t.emptyTitle}</h2>
@@ -189,12 +99,101 @@ export default function Dashboard() {
         </div>
       )}
 
-      {items && items.length > 0 && (
-        <ul className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((i) =>
-            i.kind === "project" ? <ProjectTile key={i.p.id} p={i.p} onDelete={onDelete} /> : <DeckTile key={i.d.id} d={i.d} onDelete={onDeleteDeck} />,
+      {loaded && items.length > 0 && (
+        <>
+          <dl className="panel grid grid-cols-2 divide-rule overflow-hidden sm:grid-cols-5 sm:divide-x [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1 [&>*:nth-child(n+3)]:border-t [&>*:nth-child(n+3)]:border-rule sm:[&>*:nth-child(n+3)]:border-t-0">
+            <div>
+              <dt className="sr-only">{t.nav.animations}</dt>
+              <dd>
+                <Stat value={projects.length} label={t.statAnimations(projects.length)} href="/animations" />
+              </dd>
+            </div>
+            <div>
+              <dt className="sr-only">{t.nav.slides}</dt>
+              <dd>
+                <Stat value={decks.length} label={t.statDecks(decks.length)} href="/slides" />
+              </dd>
+            </div>
+            <div>
+              <dt className="sr-only">{t.nav.assessments}</dt>
+              <dd>
+                <Stat value={assessments.length} label={t.statAssessments(assessments.length)} href="/assessments" />
+              </dd>
+            </div>
+            <div>
+              <dt className="sr-only">{t.statGraded(graded)}</dt>
+              <dd>
+                <Stat value={graded} label={t.statGraded(graded)} href="/assessments" />
+              </dd>
+            </div>
+            <div>
+              <dt className="sr-only">{t.statReview(toReview)}</dt>
+              <dd>
+                <Stat value={toReview} label={t.statReview(toReview)} href="/assessments" tone="warn" />
+              </dd>
+            </div>
+          </dl>
+
+          {(working.length > 0 || creating.length > 0) && (
+            <section aria-labelledby="in-progress" className="space-y-3">
+              <h2 id="in-progress" className="font-serif text-2xl font-semibold">
+                {t.inProgress}
+              </h2>
+              <ul className="panel divide-y divide-rule">
+                {working.map((a) => {
+                  const share = a.papers ? a.graded / a.papers : 0;
+                  const label = a.rubric_status !== "confirmed" && a.rubric_status !== "drafting" ? t.asm.rubricToCheck : t.asm.meta(a.graded, a.papers);
+                  return (
+                    <li key={a.id}>
+                      <Link href={`/assessments/${a.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-paper">
+                        <Icon name="exam" className="shrink-0 text-accent" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{a.title}</span>
+                          <span className="block text-sm text-muted">{label}</span>
+                        </span>
+                        <span className="hidden w-40 shrink-0 sm:block" aria-hidden="true">
+                          <span className="block h-1.5 overflow-hidden rounded-full bg-sunken">
+                            <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(share * 100)}%` }} />
+                          </span>
+                        </span>
+                        <span className="w-12 shrink-0 text-right text-sm text-muted tabular-nums">{fmt(share * 100, lang, 0)}%</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+                {creating.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/projects/${p.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-paper">
+                      <Icon name="film" className="shrink-0 text-accent" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{p.title}</span>
+                        <span className="block text-sm text-muted">{t.statusCreating}</span>
+                      </span>
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-gold pulse-soft" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-        </ul>
+
+          <section aria-labelledby="recent" className="space-y-4">
+            <h2 id="recent" className="font-serif text-2xl font-semibold">
+              {t.recent}
+            </h2>
+            <ul className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+              {items.slice(0, RECENT).map((i) =>
+                i.kind === "project" ? (
+                  <ProjectTile key={`p-${i.p.id}`} p={i.p} />
+                ) : i.kind === "deck" ? (
+                  <DeckTile key={`d-${i.d.id}`} d={i.d} />
+                ) : (
+                  <AssessmentTile key={`a-${i.a.id}`} a={i.a} />
+                ),
+              )}
+            </ul>
+          </section>
+        </>
       )}
     </div>
   );

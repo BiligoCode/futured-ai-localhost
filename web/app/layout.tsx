@@ -3,6 +3,8 @@ import { Commissioner, STIX_Two_Text } from "next/font/google";
 import { cookies } from "next/headers";
 import Link from "next/link";
 
+import { AppNav, MobileNav } from "@/components/AppNav";
+import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Stage";
 import { I18nProvider, LanguageSwitch } from "@/lib/i18n";
 import { LANG_COOKIE, MESSAGES, parseLang } from "@/lib/messages";
@@ -38,24 +40,31 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           >
             {t.skipToContent}
           </a>
-          <header className="border-b border-rule bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
-            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-              <Link href="/" className="group flex items-center gap-3 rounded-md" translate="no">
-                <Mark className="h-8 w-8" />
-                <span className="font-serif text-2xl leading-none font-semibold tracking-tight">Lara</span>
-                <span className="hidden border-l border-rule pl-3 text-sm text-muted md:inline">{t.tagline}</span>
-              </Link>
+          <header className="sticky top-0 z-30 border-b border-rule bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
+            <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6">
+              <div className="flex min-w-0 items-center gap-2">
+                <MobileNav />
+                <Link href="/" className="group flex min-w-0 items-center gap-3 rounded-md" translate="no">
+                  <Mark className="h-8 w-8 shrink-0" />
+                  <span className="font-serif text-2xl leading-none font-semibold tracking-tight">Lara</span>
+                  <span className="hidden truncate border-l border-rule pl-3 text-sm text-muted md:inline">{t.tagline}</span>
+                </Link>
+              </div>
               <div className="flex items-center gap-3">
                 <Link href="/new" className="btn btn-primary">
-                  {t.newMaterial}
+                  <Icon name="plus" size={16} />
+                  {t.newItem}
                 </Link>
                 <LanguageSwitch />
               </div>
             </div>
           </header>
-          <main id="main" className="w-full flex-1 px-4 py-8 sm:px-6 sm:py-10">
-            {children}
-          </main>
+          <div className="flex flex-1">
+            <AppNav />
+            <main id="main" className="w-full min-w-0 flex-1 px-4 py-8 sm:px-6 sm:py-10">
+              {children}
+            </main>
+          </div>
         </I18nProvider>
       </body>
     </html>

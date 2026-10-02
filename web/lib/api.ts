@@ -1,5 +1,25 @@
 import { LANG_COOKIE, MESSAGES, parseLang } from "./messages";
-import type { ChatResult, Cut, CutKind, Deck, DeckSummary, DeckUpdate, EmbedMode, ExportFormat, Hold, Project, ReviseResult, SceneDraft } from "./types";
+import type {
+  Assessment,
+  AssessmentSummary,
+  ChatResult,
+  CompareResult,
+  Cut,
+  CutKind,
+  Deck,
+  DeckSummary,
+  DeckUpdate,
+  EmbedMode,
+  ExportFormat,
+  Hold,
+  Paper,
+  PaperUpdate,
+  Project,
+  QuestionIn,
+  ReviseResult,
+  SceneDraft,
+  UploadResult,
+} from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -131,3 +151,36 @@ export const exportDeck = (id: string, format: ExportFormat) =>
   request<{ url: string; filename: string }>(`/decks/${id}/export`, json("POST", { format }));
 export const posterUrl = (deckId: string, projectId: string) => `${API_URL}/decks/${deckId}/posters/${projectId}.jpg`;
 export const exportUrl = (url: string) => `${API_URL}${url}`;
+
+// --- Assessments -------------------------------------------------------------------------------------------------
+
+export const listAssessments = () => request<AssessmentSummary[]>("/assessments");
+export const getAssessment = (id: string) => request<Assessment>(`/assessments/${id}`);
+export const createAssessment = (form: FormData) => request<Assessment>("/assessments", { method: "POST", body: form });
+export const updateAssessment = (id: string, body: { title?: string; course?: string; instructions?: string; scale?: number }) =>
+  request<Assessment>(`/assessments/${id}`, json("PATCH", body));
+export const deleteAssessment = (id: string) => remove(`/assessments/${id}`);
+export function uploadPapers(id: string, files: File[], splitEvery: number | null, signal?: AbortSignal) {
+  const form = new FormData();
+  for (const f of files) form.append("files", f, f.name);
+  if (splitEvery) form.append("split_every", String(splitEvery));
+  return request<UploadResult>(`/assessments/${id}/papers`, { method: "POST", body: form, signal });
+}
+export const getPaper = (aid: string, pid: string) => request<Paper>(`/assessments/${aid}/papers/${pid}`);
+export const updatePaper = (aid: string, pid: string, body: PaperUpdate) =>
+  request<Paper>(`/assessments/${aid}/papers/${pid}`, json("PATCH", body));
+export const deletePaper = (aid: string, pid: string) => remove(`/assessments/${aid}/papers/${pid}`);
+export const retryPaper = (aid: string, pid: string) => request<Paper>(`/assessments/${aid}/papers/${pid}/retry`, { method: "POST" });
+/** `tag` changes when the paper is read again, so the browser never shows a stale page image. */
+export const pageUrl = (aid: string, pid: string, n: number, tag = "") =>
+  `${API_URL}/assessments/${aid}/papers/${pid}/pages/${n}.jpg${tag ? `?v=${encodeURIComponent(tag)}` : ""}`;
+export const sourceUrl = (aid: string, pid: string) => `${API_URL}/assessments/${aid}/papers/${pid}/source`;
+export const saveRubric = (aid: string, questions: QuestionIn[], confirm: boolean) =>
+  request<Assessment>(`/assessments/${aid}/rubric`, json("PUT", { questions, confirm }));
+export const draftRubric = (aid: string) => request<Assessment>(`/assessments/${aid}/rubric/draft`, { method: "POST" });
+export const rerunAnalysis = (aid: string) => request<Assessment>(`/assessments/${aid}/analysis`, { method: "POST" });
+export const pauseAssessment = (aid: string) => request<Assessment>(`/assessments/${aid}/pause`, { method: "POST" });
+export const resumeAssessment = (aid: string) => request<Assessment>(`/assessments/${aid}/resume`, { method: "POST" });
+export const comparePapers = (aid: string, a: string, b: string) => request<CompareResult>(`/assessments/${aid}/compare/${a}/${b}`);
+export const exportAssessment = (aid: string, format: "csv" | "xlsx" | "pdf") =>
+  request<{ url: string; filename: string }>(`/assessments/${aid}/export`, json("POST", { format }));
